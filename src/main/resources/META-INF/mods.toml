@@ -1,0 +1,45 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "GPL-3.0-only"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''
+A DragonMineZ add-on. Every character gets a Potential from 1 to 5 when they pick their race, which speeds up TP gain and form mastery.
+Transformations, ki charging and clashes crack the ground, throw lightning, spray water, storm the sky and can break glass; mastered forms stay calm.
+First transformations get their moment, weaker players feel a far stronger power rising, and Guru, Elder Kai or Babidi can raise your Potential once.
+Humans get Tenacious Body (faster stamina regen) until they become androids.
+Works alone, next to DMZ Sparking, and best with DMZ Overhaul.
+'''
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.${mod_id}]]
+modId = "forge"
+mandatory = true
+versionRange = "[47.4.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "dragonminez"
+mandatory = true
+versionRange = "[2.2.1,2.2.2)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "dmzrevamp"
+mandatory = false
+versionRange = "[2.2.4,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "dmzsparking"
+mandatory = false
+versionRange = "[1.5,)"
+ordering = "AFTER"
+side = "BOTH"

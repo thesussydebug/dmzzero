@@ -1,0 +1,190 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// the self-test and the dev-game autotests: in the dev runs and the dev jar, never in the release jar
+sourceSets {
+    dev {
+        compileClasspath += main.output + main.compileClasspath
+        runtimeClasspath += main.output + main.runtimeClasspath
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            property 'dmzzero.dev', 'true'
+            property 'mixin.debug.countInjections', 'true'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                    source sourceSets.dev
+                }
+            }
+        }
+
+        client {
+            // more dev clients at once, each in its own folder: -PclientDir=run-bravo -PclientName=Bravo
+            if (project.hasProperty('clientDir')) workingDirectory project.file(project.property('clientDir'))
+            if (project.hasProperty('clientName')) args '--username', project.property('clientName')
+        }
+
+        server {
+            args '--nogui'
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, 'dmzzero.refmap.json'
+    config 'dmzzero.mixins.json'
+}
+
+repositories {
+    flatDir {
+        dir 'libs'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+
+    implementation fg.deobf('blank:dragonminez:2.2.1')
+    implementation fg.deobf('blank:geckolib-forge-1.20.1:4.8.4')
+    implementation fg.deobf('blank:curios-forge:5.14.1+1.20.1')
+    // the pack's appleskin, for the diets' food numbers (optional at runtime)
+    implementation fg.deobf('blank:appleskin-forge-mc1.20.1:2.5.1')
+    runtimeOnly fg.deobf('blank:TerraBlender-forge-1.20.1:3.0.1.10')
+    // -PwithSparking loads dmz sparking in the dev game, -PwithSparking=custom the instance's custom build
+    if (project.hasProperty('withSparking')) {
+        runtimeOnly fg.deobf(project.property('withSparking') == 'custom' ? 'blank:dmzsparking-custom:1.5.1' : 'blank:dmzsparking:1.5.1')
+    }
+    // -PwithEmbeddium loads the pack's embeddium in the dev game (it takes over chunk and cloud rendering)
+    if (project.hasProperty('withEmbeddium')) {
+        runtimeOnly fg.deobf('blank:embeddium:0.3.31+mc1.20.1')
+    }
+    // -PwithSpark loads the pack's spark profiler in the dev game and the dev server
+    if (project.hasProperty('withSpark')) {
+        runtimeOnly fg.deobf('blank:spark:1.10.53-forge')
+    }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+    // MixinClashTest scans the mods in deploy_mods_dir (set in ~/.gradle/gradle.properties) and skips without it
+    systemProperty 'dmzzero.modsDir', project.findProperty('deploy_mods_dir') ?: ''
+    testLogging {
+        events 'passed', 'failed'
+        exceptionFormat 'full'
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [mod_id: mod_id, mod_name: mod_name, mod_version: mod_version, mod_authors: mod_authors]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'MixinConfigs'            : 'dmzzero.mixins.json',
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : mod_name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+    // the gpl's text goes with every copy of the jar
+    from('LICENSE') {
+        rename { "LICENSE_${mod_id}" }
+    }
+    finalizedBy 'reobfJar'
+}
+
+// a broken self-test or autotest fails the build, though neither ships
+tasks.named('check') {
+    dependsOn 'devClasses'
+}
+
+// the release jar's contents plus the self-test and the autotests, for a test server's /dmzzero selftest. never released
+tasks.register('devJar', Jar) {
+    group = 'dmzzero'
+    description = 'Builds dmzzero-<version>-dev.jar with the self-test and the autotests, for test servers only.'
+    archiveClassifier = 'dev'
+    from sourceSets.main.output
+    from sourceSets.dev.output
+    manifest {
+        from tasks.named('jar', Jar).get().manifest
+    }
+    from('LICENSE') {
+        rename { "LICENSE_${mod_id}" }
+    }
+    finalizedBy 'reobfDevJar'
+}
+
+reobf {
+    devJar {}
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('deploy') {
+    group = 'dmzzero'
+    description = 'Builds the mod and copies it into deploy_mods_dir, moving older dmzzero jars to a backup folder.'
+    dependsOn 'build', 'reobfJar'
+    doLast {
+        def dir = project.findProperty('deploy_mods_dir')
+        if (!dir) {
+            throw new GradleException('deploy_mods_dir is not set. Add deploy_mods_dir=<instance mods folder> to gradle.properties in your Gradle user home (~/.gradle).')
+        }
+        File mods = file(dir)
+        if (!mods.isDirectory()) {
+            throw new GradleException("deploy_mods_dir does not exist: ${mods}")
+        }
+        File built = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        File backup = new File(mods.parentFile, 'dmzzero-backup')
+        mods.listFiles().findAll { it.name ==~ /dmzzero-\d.*\.jar/ && it.name != built.name }.each { File old ->
+            backup.mkdirs()
+            ant.move(file: old, todir: backup, overwrite: true)
+            println "moved ${old.name} to ${backup}"
+        }
+        copy {
+            from built
+            into mods
+        }
+        println "deployed ${built.name} to ${mods}"
+    }
+}

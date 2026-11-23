@@ -1,0 +1,37 @@
+# build and dev-run output
+/build/
+/.gradle/
+/run/
+/run-*/
+/logs/
+
+# third-party jars, supplied by the person building
+/libs/
+*.jar
+!/gradle/wrapper/gradle-wrapper.jar
+*.log
+
+# Claude Code files: kept on disk, not in the repo
+/.claude/
+/CLAUDE.md
+
+# local planning notes: kept on disk, not in the repo
+/RELEASE-PLAN.md
+/HEALING-AUDIT.md
+
+# JUnit tests, the self-test and the dev-game autotests: kept on disk, not in the repo
+/src/test/
+/src/dev/
+
+# editors and local settings
+/.idea/
+/.vscode/
+/.classpath
+/.project
+/.settings/
+/bin/
+/out/
+/eclipse/
+*.iml
+*.ipr
+*.iws

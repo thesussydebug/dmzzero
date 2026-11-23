@@ -1,0 +1,13 @@
+{
+  "type": "dmzzero:null_realm",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "dmzzero:null_realm",
+      "lakes": false,
+      "features": false,
+      "layers": [],
+      "structure_overrides": []
+    }
+  }
+}
