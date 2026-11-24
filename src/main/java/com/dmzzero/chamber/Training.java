@@ -25,6 +25,7 @@ import com.dragonminez.common.stats.StatsProvider;
 import com.dragonminez.common.stats.character.Cooldowns;
 import com.dragonminez.server.world.dimension.HTCDimension;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -307,8 +308,14 @@ public final class Training {
         return false;
     }
 
-    /** Puts a training copy of the opponent in front of the player. */
+    /** Puts as many training copies of the opponent in front of the player as its quest had. */
     public static Result fight(ServerPlayer player, String idText) {
+        Opponent o = find(player, idText);
+        return fight(player, idText, o == null ? 1 : o.count());
+    }
+
+    /** Puts {@code wanted} training copies of the opponent in front of the player, or as many as their limit leaves room for. */
+    public static Result fight(ServerPlayer player, String idText, int wanted) {
         Result no = blocked(player);
         if (no != null) return no;
         if (cooling(LAST_FIGHT, player, FIGHT_COOLDOWN)) {
@@ -332,7 +339,7 @@ public final class Training {
         }
         int made = 0;
         boolean peaceful = false;
-        int count = Math.min(o.count(), room);
+        int count = Math.min(Math.max(1, wanted), room);
         for (int i = 0; i < count; i++) {
             Entity e = o.type().create(level);
             if (!(e instanceof LivingEntity living) || e instanceof Player) {
@@ -365,7 +372,9 @@ public final class Training {
         spawned += made;
         DMZZero.LOG.info("[Training] {} trains against {} x{} ({} HP).", player.getGameProfile().getName(), o.id().text(), made, Math.round(o.health()));
         Component name = Component.translatable(o.type().getDescriptionId());
-        Component line = made > 1
+        Component line = wanted > room && made == room
+                ? Component.translatableWithFallback("message.dmzzero.training.fight_limit", "Training: %s x%s, your limit. Fight!", name, made)
+                : made > 1
                 ? Component.translatableWithFallback("message.dmzzero.training.fight_many", "Training: %s x%s. Fight!", name, made)
                 : Component.translatableWithFallback("message.dmzzero.training.fight", "Training: %s. Fight!", name);
         return new Result("ok", made, line.copy().withStyle(ChatFormatting.AQUA));
@@ -592,9 +601,12 @@ public final class Training {
         for (var section : shown) {
             out.add(TrainingText.header(section.section(), section.foes().size(), readable).copy().withStyle(ChatFormatting.GOLD));
             for (TrainingMenuS2C.Foe f : section.foes()) {
+                // without the menu, the link puts the command in the chat box so you set how many before sending it
                 MutableComponent fight = Component.translatableWithFallback("message.dmzzero.training.fight_link", "[Fight]").withStyle(s -> s
                         .withColor(ChatFormatting.GREEN)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/dmzzero training fight " + f.id())));
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dmzzero training fight " + f.count() + " " + f.id()))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatableWithFallback(
+                                "message.dmzzero.training.fight_hover", "Set how many to fight, then press Enter. Up to %s at once.", menu.max()))));
                 out.add(Component.literal(" ").append(fight).append(" ").append(TrainingText.line(f, readable)));
             }
         }
@@ -619,12 +631,13 @@ public final class Training {
                     if (!"ok".equals(r.reason()) && !"cooldown".equals(r.reason())) c.getSource().sendFailure(r.line());
                     return "ok".equals(r.reason()) ? 1 : 0;
                 })
-                .then(Commands.literal("fight").then(Commands.argument("id", StringArgumentType.greedyString()).executes(c -> {
-                    ServerPlayer player = c.getSource().getPlayerOrException();
-                    Result r = fight(player, StringArgumentType.getString(c, "id"));
-                    player.displayClientMessage(r.line(), true);
-                    return r.made();
-                })))
+                .then(Commands.literal("fight").then(Commands.argument("count", IntegerArgumentType.integer(1))
+                        .then(Commands.argument("id", StringArgumentType.greedyString()).executes(c -> {
+                            ServerPlayer player = c.getSource().getPlayerOrException();
+                            Result r = fight(player, StringArgumentType.getString(c, "id"), IntegerArgumentType.getInteger(c, "count"));
+                            player.displayClientMessage(r.line(), true);
+                            return r.made();
+                        }))))
                 .then(Commands.literal("clear").executes(c -> {
                     ServerPlayer player = c.getSource().getPlayerOrException();
                     int n = clear(player);

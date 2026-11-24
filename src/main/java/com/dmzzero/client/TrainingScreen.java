@@ -11,20 +11,20 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-// the time chamber training menu: a search box over the opponents you can refight, each with a Fight button.
-// the search stays when the server sends the menu again (after Clear)
+// the time chamber training menu: a search box over the opponents you can refight, each with a Fight button that
+// asks how many. the search stays when the server sends the menu again (after Clear)
 public final class TrainingScreen extends Screen {
     private static final int ROW = 24;
     private static final int TOP = 66;
     private static final int BUTTON_W = 56;
     private static final int BUTTON_H = 18;
     private static final int GOLD = 0xFFD700;
-    private static final int CYAN = 0x7CFDD6;
     private static final int WHITE = 0xFFFFFF;
     private static final int MUTED = 0xB0B0B0;
     private static final int HEADER = 0x30FFFFFF;
@@ -38,6 +38,9 @@ public final class TrainingScreen extends Screen {
     private EditBox search;
     private boolean typing = true;
     private int scroll;
+
+    private TrainingMenuS2C.Foe picking;
+    private EditBox howMany;
 
     // a section header, an opponent, or a line saying what will show up there
     private record Row(Component text, Component detail, TrainingMenuS2C.Foe foe, boolean header) {
@@ -114,6 +117,10 @@ public final class TrainingScreen extends Screen {
 
     @Override
     protected void init() {
+        if (picking != null) {
+            initPrompt();
+            return;
+        }
         int left = left(), right = left + listWidth();
         if (search == null) {
             search = new EditBox(font, left, 42, listWidth(), 16, Component.translatableWithFallback("gui.dmzzero.training.search", "Search"));
@@ -142,9 +149,68 @@ public final class TrainingScreen extends Screen {
                 .bounds(width / 2 - 40, height - 26, 80, 20).build());
     }
 
+    private int room() {
+        return Math.max(0, menu.max() - menu.out());
+    }
+
+    // Fight asks how many first; the box starts at the quest's count, cut to the room left
     private void fight(TrainingMenuS2C.Foe foe) {
+        picking = foe;
+        howMany = new EditBox(font, 0, 0, 60, 18, Component.translatableWithFallback("gui.dmzzero.training.how_many", "How many?"));
+        howMany.setMaxLength(3);
+        howMany.setFilter(s -> s.chars().allMatch(Character::isDigit));
+        howMany.setValue(String.valueOf(Mth.clamp(foe.count(), 1, Math.max(1, room()))));
+        typing = false;
+        rebuildWidgets();
+        howMany.moveCursorToEnd();
+    }
+
+    // more than the limit isn't asked again: the server puts out as many as there's room for
+    private void spawn() {
+        if (picking == null) return;
+        int wanted;
+        try {
+            wanted = Math.max(1, Integer.parseInt(howMany.getValue()));
+        } catch (NumberFormatException e) {
+            wanted = 1;
+        }
+        String id = picking.id();
         onClose();
-        send("dmzzero training fight " + foe.id());
+        send("dmzzero training fight " + wanted + " " + id);
+    }
+
+    private void back() {
+        picking = null;
+        howMany = null;
+        typing = true;
+        rebuildWidgets();
+    }
+
+    private void initPrompt() {
+        int cx = width / 2, cy = height / 2;
+        howMany.setX(cx - 30);
+        howMany.setY(cy - 6);
+        addRenderableWidget(howMany);
+        setFocused(howMany);
+        addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.spawn", "Fight"), b -> spawn())
+                .bounds(cx - 84, cy + 20, 80, 20).build());
+        addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.back", "Back"), b -> back())
+                .bounds(cx + 4, cy + 20, 80, 20).build());
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scan, int modifiers) {
+        if (picking != null) {
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                spawn();
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                back();
+                return true;
+            }
+        }
+        return super.keyPressed(key, scan, modifiers);
     }
 
     private static void send(String command) {
@@ -154,6 +220,7 @@ public final class TrainingScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (picking != null) return true;
         int next = Mth.clamp(scroll - (int) Math.signum(delta) * 3, 0, maxScroll());
         if (next != scroll) {
             scroll = next;
@@ -165,9 +232,14 @@ public final class TrainingScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
+        if (picking != null) {
+            renderPrompt(g);
+            super.render(g, mouseX, mouseY, partialTick);
+            return;
+        }
         int left = left(), width = listWidth();
         g.drawCenteredString(font, title, this.width / 2, 8, GOLD);
-        g.drawString(font, TrainingText.out(menu.out(), menu.max()), left, 26, CYAN);
+        g.drawString(font, TrainingText.out(menu.out(), menu.max()), left, 26, WHITE);
         int last = Math.min(rows.size(), scroll + visibleRows());
         for (int i = scroll; i < last; i++) {
             Row row = rows.get(i);
@@ -191,6 +263,16 @@ public final class TrainingScreen extends Screen {
                     scroll + 1, last, rows.size()), this.width / 2, height - 38, MUTED);
         }
         super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    // laid out like vanilla's confirm screens: the list steps aside, a question and its buttons sit on the plain background
+    private void renderPrompt(GuiGraphics g) {
+        int cx = width / 2, cy = height / 2;
+        g.drawCenteredString(font, title, cx, 8, GOLD);
+        Component ask = Component.translatableWithFallback("gui.dmzzero.training.how_many_of", "How many %s?", Component.translatable(picking.entity()));
+        g.drawCenteredString(font, font.plainSubstrByWidth(ask.getString(), width - 16), cx, cy - 36, WHITE);
+        g.drawCenteredString(font, Component.translatableWithFallback("gui.dmzzero.training.room", "Room for %s more (limit %s)", room(), menu.max()),
+                cx, cy - 22, MUTED);
     }
 
     @Override
