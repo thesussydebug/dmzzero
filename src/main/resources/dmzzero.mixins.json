@@ -28,6 +28,7 @@
     "KiWaveAccess",
     "KiWaveMixin",
     "KnockbackHelperMixin",
+    "MobAccess",
     "NpcActionMixin",
     "OverhaulZenkaiMixin",
     "PunchMachineMixin",

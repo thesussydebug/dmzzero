@@ -256,6 +256,11 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.BooleanValue chamberWish;
         public final ForgeConfigSpec.IntValue chamberWishDays;
         public final ForgeConfigSpec.DoubleValue chamberMastery;
+        public final ForgeConfigSpec.BooleanValue training;
+        public final ForgeConfigSpec.BooleanValue trainingOnlyInChamber;
+        public final ForgeConfigSpec.IntValue trainingMaxOpponents;
+        public final ForgeConfigSpec.IntValue trainingTpPercent;
+        public final ForgeConfigSpec.IntValue trainingMasteryPercent;
         public final ForgeConfigSpec.IntValue senzuDays;
         public final ForgeConfigSpec.BooleanValue strikeNames;
         public final ForgeConfigSpec.BooleanValue arrowBounce;
@@ -873,6 +878,19 @@ public final class ZeroConfig {
                     .defineInRange("wishDays", 2, 1, 1000);
             chamberMastery = b.comment("DMZ's passive form mastery is multiplied by this while you stay transformed in the Time Chamber. 1 is off.")
                     .defineInRange("masteryMultiplier", 3.0, 1.0, 10.0);
+
+            b.push("training");
+            training = b.comment("Refight the saga bosses and mobs you've beaten as training copies that drop nothing (key K, /dmzzero training).")
+                    .define("enabled", true);
+            trainingOnlyInChamber = b.comment("Training copies only come in the Time Chamber.")
+                    .define("onlyInChamber", true);
+            trainingMaxOpponents = b.comment("Training copies each player can have out at once. Every player training adds this many mobs.")
+                    .defineInRange("maxOpponents", 3, 1, 20);
+            trainingTpPercent = b.comment("Percent of the usual TP a fight with a training copy pays, after every other bonus.")
+                    .defineInRange("tpPercent", 50, 0, 100);
+            trainingMasteryPercent = b.comment("Percent of the usual form mastery a fight with a training copy pays, hits dealt and taken.")
+                    .defineInRange("masteryPercent", 50, 0, 100);
+            b.pop();
             b.pop();
 
             b.push("saibamen");

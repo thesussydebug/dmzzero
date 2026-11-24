@@ -19,7 +19,7 @@ public final class ZeroKeys {
 
     /** Every DMZ Zero key. A new key goes in this list, not in an event handler of its own. */
     public static List<KeyMapping> all() {
-        return List.of(ScouterClient.PING, BeamCancelKey.CANCEL);
+        return List.of(ScouterClient.PING, BeamCancelKey.CANCEL, TrainingKey.OPEN);
     }
 
     @SubscribeEvent

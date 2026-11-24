@@ -12,8 +12,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ZeroNetwork {
-    // 11: the server settings sent to players are keyed by their regrouped paths ("fighting.swat.reach")
-    private static final String PROTOCOL = "11";
+    // 12: the time chamber training menu (TrainingMenuS2C)
+    private static final String PROTOCOL = "12";
 
     // either side may lack dmz zero, a server-only install still works
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
@@ -95,6 +95,11 @@ public final class ZeroNetwork {
                 .encoder(SpellC2S::encode)
                 .decoder(SpellC2S::decode)
                 .consumerNetworkThread(SpellC2S::handle)
+                .add();
+        CHANNEL.messageBuilder(TrainingMenuS2C.class, 14, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(TrainingMenuS2C::encode)
+                .decoder(TrainingMenuS2C::decode)
+                .consumerMainThread(TrainingMenuS2C::handle)
                 .add();
     }
 
