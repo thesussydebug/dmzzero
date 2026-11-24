@@ -296,7 +296,7 @@ public final class Battles {
         // party members fight each other here, so their party's friendly fire is lifted for the battle
         for (Map.Entry<UUID, Integer> e : parties.entrySet()) {
             if (e.getValue() < 2) continue;
-            PartyManager.setTournamentFriendlyFire(server, e.getKey(), true);
+            com.dmzzero.duel.PartyLift.lift(server, e.getKey());
             b.lifted.add(e.getKey());
         }
         BATTLES.add(b);
@@ -483,7 +483,8 @@ public final class Battles {
             boolean won = id.equals(r.winner());
             record(p, won, b.fight.kos(id));
             if (won) {
-                if (n >= 2) com.dmzzero.form.FightMastery.award(p, com.dmzzero.form.FightMastery.Win.BATTLE);
+                // a win by walkover (everyone else left before going down) pays no mastery, as a duel forfeit doesn't
+                if (n >= 2 && b.fight.kos(id) > 0) com.dmzzero.form.FightMastery.award(p, com.dmzzero.form.FightMastery.Win.BATTLE);
                 Titles.show(p, Component.translatableWithFallback("title.dmzzero.battle.won", "Last One Standing").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
                         Component.translatableWithFallback("title.dmzzero.battle.kos", "%s knockouts", b.fight.kos(id)), 5, 60, 15);
                 p.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 0.7f, 1.0f);
@@ -522,7 +523,7 @@ public final class Battles {
             ServerPlayer p = find(server, id);
             if (p != null) goHome(b, p);
         }
-        for (UUID party : b.lifted) PartyManager.setTournamentFriendlyFire(server, party, false);
+        for (UUID party : b.lifted) com.dmzzero.duel.PartyLift.drop(server, party);
         b.lifted.clear();
         NullRealm.release(b.level, b.slot, b.radius);
     }

@@ -181,7 +181,11 @@ public final class MightTree {
             int target = MightTreeMath.stage(now - t.planted(), grow);
             if (target > t.stage()) {
                 List<MightTreeMath.Piece> tree = MightTreeMath.blueprint(t.base());
-                for (MightTreeMath.Piece p : MightTreeMath.part(tree, target)) place(level, base, p);
+                List<MightTreeMath.Piece> part = MightTreeMath.part(tree, target);
+                // a piece in an unloaded chunk would be skipped and never come back once the stage is saved, so the tree
+                // waits to grow until all of it is loaded
+                if (!allLoaded(level, base, part)) continue;
+                for (MightTreeMath.Piece p : part) place(level, base, p);
                 t = new MightTreeSave.Tree(t.base(), t.owner(), t.planted(), target, target == MightTreeMath.GROWN ? now : t.lastFruit(), t.drained());
                 save.put(t);
                 level.playSound(null, base, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.BLOCKS, 1f, 0.5f);
@@ -195,6 +199,22 @@ public final class MightTree {
                 if (f != null) save.put(new MightTreeSave.Tree(f.base(), f.owner(), f.planted(), f.stage(), now, f.drained()));
             }
         }
+    }
+
+    // whose ki griefing the drain is: the owner, or with them offline a stand-in under their profile, so dmz still applies
+    // its players' gamerule (it would read the mobs' one for no one) and WorldGuard still sees the owner
+    public static net.minecraft.world.entity.player.Player griefer(ServerLevel level, java.util.UUID owner) {
+        ServerPlayer online = level.getServer().getPlayerList().getPlayer(owner);
+        if (online != null) return online;
+        var cache = level.getServer().getProfileCache();
+        com.mojang.authlib.GameProfile profile = cache == null ? null : cache.get(owner).orElse(null);
+        if (profile == null) profile = new com.mojang.authlib.GameProfile(owner, "[DMZZeroTree]");
+        return net.minecraftforge.common.util.FakePlayerFactory.get(level, profile);
+    }
+
+    static boolean allLoaded(ServerLevel level, BlockPos base, List<MightTreeMath.Piece> part) {
+        for (MightTreeMath.Piece p : part) if (!level.isLoaded(base.offset(p.dx(), p.dy(), p.dz()))) return false;
+        return true;
     }
 
     // only into air, plants and the tree's own blocks, never over anything built
@@ -223,8 +243,7 @@ public final class MightTree {
                 if (s.isAir() || s.canBeReplaced()) continue;
                 return false;
             }
-            ServerPlayer owner = level.getServer().getPlayerList().getPlayer(t.owner());
-            if (!MainGameRules.canKiGrief(level, pos, owner)) return false;
+            if (!MainGameRules.canKiGrief(level, pos, griefer(level, t.owner()))) return false;
             level.setBlock(pos, Blocks.COARSE_DIRT.defaultBlockState(), Block.UPDATE_ALL);
             level.sendParticles(ParticleTypes.ASH, pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5, 6, 0.3, 0.05, 0.3, 0);
             List<Long> drained = new ArrayList<>(t.drained());

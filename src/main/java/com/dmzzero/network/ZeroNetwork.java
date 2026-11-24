@@ -12,7 +12,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ZeroNetwork {
-    // 12: the time chamber training menu (TrainingMenuS2C)
+    // 12: the time chamber training menu (TrainingMenuS2C) and ki boost's overcharge for the hud (KiOverchargeS2C)
     private static final String PROTOCOL = "12";
 
     // either side may lack dmz zero, a server-only install still works
@@ -100,6 +100,11 @@ public final class ZeroNetwork {
                 .encoder(TrainingMenuS2C::encode)
                 .decoder(TrainingMenuS2C::decode)
                 .consumerMainThread(TrainingMenuS2C::handle)
+                .add();
+        CHANNEL.messageBuilder(KiOverchargeS2C.class, 15, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(KiOverchargeS2C::encode)
+                .decoder(KiOverchargeS2C::decode)
+                .consumerMainThread(KiOverchargeS2C::handle)
                 .add();
     }
 

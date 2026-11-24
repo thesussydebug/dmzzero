@@ -3,7 +3,10 @@ package com.dmzzero.duel;
 import com.dmzzero.DMZZero;
 import com.dmzzero.Titles;
 import com.dmzzero.ZeroConfig;
+import com.dmzzero.realm.Battles;
 import com.dmzzero.rival.Rivals;
+import com.dragonminez.server.world.tournament.Tournament;
+import com.dragonminez.server.world.worldboss.WorldBossManager;
 import com.dmzzero.status.TickCost;
 import com.dragonminez.common.network.NetworkHandler;
 import com.dragonminez.common.network.S2C.StatsSyncS2C;
@@ -66,8 +69,9 @@ public final class Duels {
         final ServerLevel level;
         final Vec3 center;
         final double radius;
-        final ServerPlayer a;
-        final ServerPlayer b;
+        // the players themselves: a respawn makes a new one, so the arena follows it (onClone)
+        ServerPlayer a;
+        ServerPlayer b;
         final boolean aFist;
         final boolean bFist;
         // a duel between party members lifts their party's friendly fire until it ends
@@ -103,6 +107,8 @@ public final class Duels {
         if (!hasCharacter(from) || !hasCharacter(to)) return refuse(from, "no_character", "Both of you need a character first.");
         if (arena(from) != null) return refuse(from, "busy", "You're already in a duel.");
         if (arena(to) != null) return refuse(from, "target_busy", "%s is already in a duel.", to.getGameProfile().getName());
+        if (elsewhere(from)) return refuse(from, "elsewhere", "You can't duel right now. Finish your other fight first.");
+        if (elsewhere(to)) return refuse(from, "target_elsewhere", "%s can't duel right now.", to.getGameProfile().getName());
         if (from.level() != to.level() || from.distanceTo(to) > ZeroConfig.SERVER.challengeRange.get())
             return refuse(from, "too_far", "%s is too far away.", to.getGameProfile().getName());
         long now = from.server.getTickCount();
@@ -126,6 +132,14 @@ public final class Duels {
         return "ok";
     }
 
+    // a fight elsewhere comes first: a duel's fresh start would refill and stand up someone in a null realm battle, a dmz
+    // tournament or a world boss fight, and nobody outside the duel could hit them there
+    static boolean elsewhere(ServerPlayer p) {
+        StatsData data = stats(p);
+        if (!p.isAlive() || data != null && data.getStatus().isKnockedDown()) return true;
+        return Battles.involved(p) || Tournament.Manager.runOf(p) != null || WorldBossManager.activeFor(p) != null;
+    }
+
     private static Component button(String text, ChatFormatting color, String command, Component hover) {
         return Component.literal(text).withStyle(Style.EMPTY.withColor(color).withBold(true)
                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
@@ -137,6 +151,7 @@ public final class Duels {
         if (!CHALLENGES.take(from.getUUID(), to.getUUID(), now))
             return refuse(to, "no_challenge", "%s hasn't challenged you (or it ran out).", from.getGameProfile().getName());
         if (arena(from) != null || arena(to) != null) return refuse(to, "accept_busy", "One of you is already in a duel.");
+        if (elsewhere(from) || elsewhere(to)) return refuse(to, "accept_elsewhere", "One of you is in another fight or down right now.");
         if (from.level() != to.level() || from.distanceTo(to) > ZeroConfig.SERVER.challengeRange.get() * 1.5)
             return refuse(to, "accept_too_far", "%s is too far away now.", from.getGameProfile().getName());
         start(from, to, now);
@@ -172,7 +187,7 @@ public final class Duels {
         prepare(b, db);
         if (PartyManager.areInSameParty(a, b)) {
             arena.party = PartyManager.getPartyId(a);
-            if (arena.party != null) PartyManager.setTournamentFriendlyFire(a.server, arena.party, true);
+            if (arena.party != null) PartyLift.lift(a.server, arena.party);
         }
         Component news = Component.translatableWithFallback(rivals ? "message.dmzzero.duel.begins_rivals" : "message.dmzzero.duel.begins",
                 rivals ? "Rivals %s and %s square off in a duel." : "%s and %s square off in a duel.",
@@ -302,7 +317,7 @@ public final class Duels {
         restore(arena.a, arena.aFist);
         restore(arena.b, arena.bFist);
         if (arena.party != null) {
-            PartyManager.setTournamentFriendlyFire(arena.level.getServer(), arena.party, false);
+            PartyLift.drop(arena.level.getServer(), arena.party);
             arena.party = null;
         }
         String an = arena.a.getGameProfile().getName(), bn = arena.b.getGameProfile().getName();
@@ -411,7 +426,22 @@ public final class Duels {
         if (!(event.getEntity() instanceof ServerPlayer p)) return;
         CHALLENGES.forget(p.getUUID());
         Arena arena = arena(p);
-        if (arena != null) restore(p, arena.a == p ? arena.aFist : arena.bFist);
+        if (arena == null) return;
+        // a forfeit, settled now: the player's data is saved right after this event, so a loss written on the next tick
+        // would never be kept
+        ARENAS.remove(arena);
+        end(arena, new DuelMath.Outcome(arena.duel.other(p.getUUID()), p.getUUID(), DuelMath.Reason.LOGGED_OUT), p.server.getTickCount());
+    }
+
+    // a death the duel lets through (the void, /kill) respawns the player as a new ServerPlayer with dmz's data copied
+    // over, friendly fist and all: the arena follows the new one, so the end puts it back on the player who's playing
+    @SubscribeEvent
+    public static void onClone(PlayerEvent.Clone event) {
+        if (ARENAS.isEmpty() || !(event.getEntity() instanceof ServerPlayer now) || !(event.getOriginal() instanceof ServerPlayer was)) return;
+        for (Arena arena : ARENAS) {
+            if (arena.a == was) arena.a = now;
+            if (arena.b == was) arena.b = now;
+        }
     }
 
     @SubscribeEvent

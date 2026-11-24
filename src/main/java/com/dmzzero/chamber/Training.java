@@ -109,7 +109,8 @@ public final class Training {
     private record Out(ResourceKey<Level> level, Set<UUID> ids) {
     }
 
-    private record Fallen(ResourceKey<Level> level, Vec3 at, long tick) {
+    // copy: a training copy fell here; otherwise a real mob or player died next to one, and its loot is its own
+    private record Fallen(ResourceKey<Level> level, Vec3 at, long tick, boolean copy) {
     }
 
     /** One opponent the menu offers. {@code saga} is the id of the saga its quest is in, or null. */
@@ -445,7 +446,18 @@ public final class Training {
         if (dead.level().isClientSide() || !isCopy(dead)) return;
         long now = dead.level().getGameTime();
         FALLEN.removeIf(f -> now - f.tick() > 2L);
-        FALLEN.add(new Fallen(dead.level().dimension(), dead.position(), now));
+        FALLEN.add(new Fallen(dead.level().dimension(), dead.position(), now, true));
+    }
+
+    // a mob or player that really dies right after a copy (one blast, say) drops its loot inside the death; only then is
+    // it worth noting where, and only while a copy's spot is still listed
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onRealDeath(LivingDeathEvent event) {
+        LivingEntity dead = event.getEntity();
+        if (FALLEN.isEmpty() || event.isCanceled() || dead.level().isClientSide() || isCopy(dead)) return;
+        long now = dead.level().getGameTime();
+        FALLEN.removeIf(f -> now - f.tick() > 2L);
+        if (!FALLEN.isEmpty()) FALLEN.add(new Fallen(dead.level().dimension(), dead.position(), now, false));
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -459,14 +471,18 @@ public final class Training {
         Entity e = event.getEntity();
         if (e instanceof ItemEntity || e instanceof ExperienceOrb) {
             if (FALLEN.isEmpty()) return;
+            // an item someone threw or dropped is theirs, not the copy's
+            if (e instanceof com.dmzzero.mixin.ItemEntityAccess item && item.dmzzero$thrower() != null) return;
             long now = event.getLevel().getGameTime();
             FALLEN.removeIf(f -> now - f.tick() > 2L);
+            // stopped when the nearest death within 4 blocks is a copy's; a real death as near or nearer keeps it
+            Fallen nearest = null;
             for (Fallen f : FALLEN) {
-                if (f.level().equals(event.getLevel().dimension()) && f.at().closerThan(e.position(), 4.0)) {
-                    event.setCanceled(true);
-                    return;
-                }
+                if (!f.level().equals(event.getLevel().dimension()) || !f.at().closerThan(e.position(), 4.0)) continue;
+                double d = f.at().distanceToSqr(e.position());
+                if (nearest == null || d < nearest.at().distanceToSqr(e.position()) || d == nearest.at().distanceToSqr(e.position()) && !f.copy()) nearest = f;
             }
+            if (nearest != null && nearest.copy()) event.setCanceled(true);
             return;
         }
         // a copy left over from before a restart, or from a player who has left, has no one to train

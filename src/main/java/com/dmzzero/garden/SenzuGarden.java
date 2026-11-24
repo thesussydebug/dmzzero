@@ -222,8 +222,9 @@ public final class SenzuGarden {
         }
     }
 
-    // dug up: the bean comes back, and a ripe bush drops no sweet berries
-    @SubscribeEvent
+    // dug up: the bean comes back, and a ripe bush drops no sweet berries. last, so a claim or protection mod that
+    // cancels the break has had its say (a cancelled break never gets here)
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void onBreak(BlockEvent.BreakEvent event) {
         if (!event.getState().is(Blocks.SWEET_BERRY_BUSH) || !(event.getLevel() instanceof ServerLevel level) || !ZeroConfig.SERVER.senzuGarden.get()) return;
         SenzuSave save = SenzuSave.get(level);

@@ -229,6 +229,14 @@ public final class Carries {
         return CARRIED.containsKey(carrier.getUUID());
     }
 
+    /**
+     * Whether a player is carrying this mob right now. Vanilla saves no entity that rides another, and a player's save
+     * keeps no passengers, so EntityCarriedSaveMixin saves it with the world like any mob: a crash can't lose it.
+     */
+    public static boolean heldByPlayer(Entity e) {
+        return !CARRIED.isEmpty() && e.getVehicle() instanceof ServerPlayer carrier && e.getUUID().equals(CARRIED.get(carrier.getUUID()));
+    }
+
     public static int setDowns() {
         return setDown;
     }

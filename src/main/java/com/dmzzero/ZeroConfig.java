@@ -261,6 +261,11 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue trainingMaxOpponents;
         public final ForgeConfigSpec.IntValue trainingTpPercent;
         public final ForgeConfigSpec.IntValue trainingMasteryPercent;
+        public final ForgeConfigSpec.BooleanValue overcharge;
+        public final ForgeConfigSpec.DoubleValue overchargePerLevel;
+        public final ForgeConfigSpec.DoubleValue overchargeMax;
+        public final ForgeConfigSpec.IntValue overchargeFillSeconds;
+        public final ForgeConfigSpec.IntValue overchargeFadeSeconds;
         public final ForgeConfigSpec.IntValue senzuDays;
         public final ForgeConfigSpec.BooleanValue strikeNames;
         public final ForgeConfigSpec.BooleanValue arrowBounce;
@@ -683,6 +688,19 @@ public final class ZeroConfig {
                     .defineInRange("spikeRatio", 1.5, 1.1, 1000.0);
             scouterSpikeMin = b.comment("Readings below this never count as a spike.")
                     .defineInRange("spikeMin", 1000, 0, Integer.MAX_VALUE);
+            b.pop();
+
+            b.push("overcharge");
+            overcharge = b.comment("With DMZ's Ki Boost skill, ki charges past full during DMZ's ki overcharge (the surge) and fades back after.")
+                    .define("enabled", true);
+            overchargePerLevel = b.comment("Percent past full that each Ki Boost level adds.")
+                    .defineInRange("percentPerLevel", 12.5, 0.0, 100.0);
+            overchargeMax = b.comment("Most percent past full, whatever the Ki Boost level.")
+                    .defineInRange("maxPercent", 50.0, 0.0, 400.0);
+            overchargeFillSeconds = b.comment("Charging in an overcharge fills the whole extra at least this fast. 0 leaves it to DMZ's own charging.")
+                    .defineInRange("fillSeconds", 8, 0, 600);
+            overchargeFadeSeconds = b.comment("Seconds the whole extra takes to fade back to full after the overcharge. 0 drops it at once.")
+                    .defineInRange("fadeSeconds", 10, 0, 600);
             b.pop();
             b.pop();
 
