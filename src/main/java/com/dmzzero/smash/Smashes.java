@@ -237,7 +237,7 @@ public final class Smashes {
                 BlockState state = level.getBlockState(pos);
                 if (state.isAir() || state.getCollisionShape(level, pos).isEmpty() || state.getDestroySpeed(level, pos) < 0) continue;
                 BlockPos front = pos.relative(out);
-                if (!level.getBlockState(front).getCollisionShape(level, front).isEmpty()) continue;
+                if (!level.isLoaded(front) || !level.getBlockState(front).getCollisionShape(level, front).isEmpty()) continue;
                 found.add(pos);
             }
         }

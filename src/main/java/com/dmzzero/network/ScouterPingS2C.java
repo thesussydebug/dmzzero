@@ -17,7 +17,8 @@ public record ScouterPingS2C(int kind, int channel, String sender, String label,
         buf.writeByte(msg.kind);
         buf.writeByte(msg.channel);
         buf.writeUtf(msg.sender, 64);
-        buf.writeUtf(msg.label, 128);
+        // a named mob's label can pass the limit, and writeUtf throws then
+        buf.writeUtf(msg.label.length() > 128 ? msg.label.substring(0, 128) : msg.label, 128);
         buf.writeDouble(msg.x);
         buf.writeDouble(msg.y);
         buf.writeDouble(msg.z);

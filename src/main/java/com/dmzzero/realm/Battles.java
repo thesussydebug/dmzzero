@@ -46,6 +46,7 @@ import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -638,6 +639,15 @@ public final class Battles {
         if (b == null) return;
         if (b.endedAt < 0 && b.fight.standing(p.getUUID())) b.fight.eliminate(p.getUUID(), Out.LOGGED_OUT, null);
         goHome(b, p);
+    }
+
+    // the party team's friendly fire is saved with the world, which is written before ServerStoppedEvent
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        for (Battle b : BATTLES) {
+            for (UUID party : b.lifted) com.dmzzero.duel.PartyLift.drop(event.getServer(), party);
+            b.lifted.clear();
+        }
     }
 
     @SubscribeEvent

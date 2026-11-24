@@ -62,9 +62,18 @@ public final class HookPlugin implements IMixinConfigPlugin {
     public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
     }
 
-    // a hook that bound leaves a call to its handler, which mixin copies into the target under a prefixed name
+    // the config is required, so a throw here would fail the mixin's apply and stop the game: the count is only a report
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+        try {
+            count(targetClassName, targetClass, mixinClassName, mixinInfo);
+        } catch (RuntimeException | LinkageError e) {
+            LOG.warn("DMZ Zero couldn't count the hooks of {} in {}; the mixin itself applied.", mixinClassName, targetClassName, e);
+        }
+    }
+
+    // a hook that bound leaves a call to its handler, which mixin copies into the target under a prefixed name
+    private static void count(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         int found = 0, ok = 0;
         List<String> missed = new ArrayList<>();
         for (MethodNode handler : mixinInfo.getClassNode(0).methods) {
