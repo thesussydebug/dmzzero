@@ -102,6 +102,11 @@ public final class ClashImpacts {
         if (point == null || !(standoff ? ZeroConfig.SERVER.standoffs.get() : ZeroConfig.SERVER.clashes.get())) return;
         Clash c = ACTIVE.get(key);
         if (c == null || c.level != level) {
+            // the same clash carried on in another world: the old one's cracks fade as if it had ended
+            if (c != null && !c.cracks.isEmpty()) {
+                c.crackExpire = now + ImpactServer.LINGER_TICKS;
+                FADING.add(c);
+            }
             List<LivingEntity> fighters = sides.get();
             c = new Clash(level, tier(fighters), griefer(fighters), standoff);
             c.fighters = fighters;

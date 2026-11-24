@@ -227,6 +227,10 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.BooleanValue villagersFlee;
         public final ForgeConfigSpec.IntValue fleeRange;
         public final ForgeConfigSpec.BooleanValue golemsAttack;
+        public final ForgeConfigSpec.BooleanValue animalFear;
+        public final ForgeConfigSpec.DoubleValue animalFearRadius;
+        public final ForgeConfigSpec.DoubleValue animalFearRatio;
+        public final ForgeConfigSpec.DoubleValue animalFearSpeed;
         public final ForgeConfigSpec.BooleanValue lifts;
         public final ForgeConfigSpec.DoubleValue liftReach;
         public final ForgeConfigSpec.IntValue liftFloatSeconds;
@@ -848,6 +852,17 @@ public final class ZeroConfig {
                     .defineInRange("fleeRange", 8, 1, 16);
             golemsAttack = b.comment("Iron golems attack evil fighters on sight.")
                     .define("golemsAttack", true);
+            b.pop();
+
+            b.push("animals");
+            animalFear = b.comment("Animals run from a raised aura far stronger than they are. Horses rear, wolves whine, and your own pets stay.")
+                    .define("enabled", true);
+            animalFearRadius = b.comment("Blocks around a raised aura that animals run from.")
+                    .defineInRange("radius", 12.0, 2.0, 48.0);
+            animalFearRatio = b.comment("How many times stronger than an animal you have to be before it runs. DMZ gives a cow about 13, a horse 56.")
+                    .defineInRange("ratio", 10.0, 1.0, 1000.0);
+            animalFearSpeed = b.comment("How fast they run, as a share of their walking speed.")
+                    .defineInRange("runSpeed", 1.6, 0.5, 3.0);
             b.pop();
 
             b.push("diets");

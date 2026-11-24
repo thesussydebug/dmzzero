@@ -154,7 +154,8 @@ public final class Scouters {
         LivingEntity target = null;
         if (entityId >= 0) {
             Entity e = from.level().getEntity(entityId);
-            if (e instanceof LivingEntity living && living.isAlive() && living != from) target = living;
+            // the client names the entity, so only one it could be aiming at: never a spectator or someone invisible to the pinger
+            if (e instanceof LivingEntity living && living.isAlive() && living != from && !living.isSpectator() && !living.isInvisibleTo(from)) target = living;
         }
         Vec3 pos = target != null ? target.position() : at;
         if (pos == null || !ScouterMath.finite(pos.x, pos.y, pos.z)) return "no_target";

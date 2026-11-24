@@ -58,7 +58,8 @@ public final class Moon {
     /** Destroys the moon when that shot hits it through open sky. Returns whether it did. */
     public static boolean tryHit(ServerPlayer p, Vec3 aim) {
         ServerLevel level = p.serverLevel();
-        if (!MoonState.hasMoon(level) || MoonSave.get(level).gone()) return false;
+        // on a new moon there's nothing up there to hit
+        if (!MoonState.hasMoon(level) || MoonSave.get(level).gone() || !MoonMath.shows(level.getMoonPhase())) return false;
         if (!MoonMath.hit(new V(aim.x, aim.y, aim.z), level.getTimeOfDay(1f))) return false;
         if (!openSky(level, p.getEyePosition(), aim.normalize())) return false;
         destroy(level, p.getGameProfile().getName());

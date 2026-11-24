@@ -170,6 +170,8 @@ public final class ImpactWorld {
     }
 
     public static boolean degrade(ServerLevel level, ServerPlayer player, BlockPos pos) {
+        // a crack can outlast the player's stay nearby; reading an unloaded spot would load or generate its chunk
+        if (!level.isLoaded(pos)) return false;
         BlockState state = level.getBlockState(pos);
         String next = Degrade.next(BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
         if (next == null) return false;

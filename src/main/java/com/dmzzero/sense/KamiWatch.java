@@ -134,6 +134,8 @@ public final class KamiWatch {
         List<WatchMath.Power> powers = new ArrayList<>();
         for (ServerPlayer other : candidates) {
             if (other == watcher || !other.isAlive() || other.isSpectator() || other.level() != watcher.level()) continue;
+            // as with scouters: divine ki the watcher can't perceive, and the anti-ki cloak, keep a player off the watch
+            if (com.dragonminez.common.racial.impl.GlindDivinity.isHiddenFrom(other, watcher) || com.dmzzero.scouter.Scouters.cloaked(other)) continue;
             StatsData d = stats(other);
             if (d == null || !d.getStatus().isHasCreatedCharacter() || d.getStatus().isAndroidUpgraded()) continue;
             double power = d.getBattlePowerExact();

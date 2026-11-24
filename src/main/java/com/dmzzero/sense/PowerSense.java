@@ -3,6 +3,7 @@ package com.dmzzero.sense;
 import com.dmzzero.DMZZero;
 import com.dmzzero.ZeroConfig;
 import com.dmzzero.scouter.Scouters;
+import com.dragonminez.common.racial.impl.GlindDivinity;
 import com.dmzzero.network.PowerSenseS2C;
 import com.dmzzero.network.ZeroNetwork;
 import com.dmzzero.rival.Rivals;
@@ -136,6 +137,8 @@ public final class PowerSense {
         int felt = 0;
         for (ServerPlayer receiver : around) {
             if (receiver == source || receiver.isSpectator() || receiver.level() != source.level()) continue;
+            // as with scouters: dmz's divine ki hides a glind from those who can't perceive it, and the anti-ki cloak hides anyone
+            if (GlindDivinity.isHiddenFrom(source, receiver) || Scouters.cloaked(source)) continue;
             StatsData other = stats(receiver);
             if (other == null || !other.getStatus().isHasCreatedCharacter()) continue;
             double distance = receiver.distanceTo(source);
