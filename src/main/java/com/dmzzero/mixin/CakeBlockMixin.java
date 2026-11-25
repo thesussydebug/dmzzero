@@ -25,6 +25,6 @@ public abstract class CakeBlockMixin {
     @Inject(method = "eat", at = @At("RETURN"))
     private static void dmzzero$end(LevelAccessor level, BlockPos pos, BlockState state, Player player,
                                     CallbackInfoReturnable<InteractionResult> cir) {
-        Diets.endCake();
+        Diets.endCake(player);
     }
 }

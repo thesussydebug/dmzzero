@@ -209,7 +209,7 @@ public final class ChamberTime {
                             ServerPlayer target = EntityArgument.getPlayer(c, "player");
                             reset(target);
                             c.getSource().sendSuccess(() -> Component.translatableWithFallback("message.dmzzero.chamber.reset",
-                                    "%s's Time Chamber time is back to none used.", target.getGameProfile().getName()), true);
+                                    "%s's Time Chamber time has been reset.", target.getGameProfile().getName()), true);
                             return 1;
                         }))
                         .then(Commands.literal("add").then(Commands.argument("days", IntegerArgumentType.integer(1, 1000)).executes(c -> {

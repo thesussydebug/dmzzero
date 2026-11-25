@@ -93,6 +93,8 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.BooleanValue throughTrees;
         public final ForgeConfigSpec.DoubleValue throughSpeed;
         public final ForgeConfigSpec.IntValue throughAhead;
+        public final ForgeConfigSpec.BooleanValue runningDust;
+        public final ForgeConfigSpec.DoubleValue runningSpeed;
         public final ForgeConfigSpec.BooleanValue senseNames;
         public final ForgeConfigSpec.BooleanValue rivals;
         public final ForgeConfigSpec.DoubleValue rivalBonus;
@@ -347,6 +349,11 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.BooleanValue plowing;
         public final ForgeConfigSpec.DoubleValue plowTpShare;
         public final ForgeConfigSpec.IntValue plowBlocksPerDay;
+        public final ForgeConfigSpec.BooleanValue waterfall;
+        public final ForgeConfigSpec.IntValue waterfallHeight;
+        public final ForgeConfigSpec.IntValue waterfallSeconds;
+        public final ForgeConfigSpec.DoubleValue waterfallTpShare;
+        public final ForgeConfigSpec.IntValue waterfallPaysPerDay;
         public final ForgeConfigSpec.BooleanValue ajissaGrowth;
         public final ForgeConfigSpec.DoubleValue ajissaHours;
         public final ForgeConfigSpec.BooleanValue mightTree;
@@ -491,7 +498,7 @@ public final class ZeroConfig {
                     .define("enabled", true);
             giantScale = b.comment("Size, in times normal, that counts as a giant. The Great Ape is 3.8, the Orange Giant 2.8.")
                     .defineInRange("minScale", 2.5, 1.1, 20.0);
-            giantStomp = b.comment("A giant landing from a fall pushes away everyone nearby it may hit.")
+            giantStomp = b.comment("A giant landing from a fall pushes away everyone nearby that it may hit.")
                     .define("stomp", true);
             stompStrength = b.comment("Stomp push strength. 1 is normal.")
                     .defineInRange("stompStrength", 1.0, 0.0, 5.0);
@@ -736,6 +743,13 @@ public final class ZeroConfig {
                     .defineInRange("throughAhead", 6, 0, 10);
             b.pop();
 
+            b.push("running");
+            runningDust = b.comment("Running faster than vanilla sprinting kicks up dust, sand, snow or bits of grass behind you. No blocks change.")
+                    .define("dust", true);
+            runningSpeed = b.comment("Running speed, in blocks per tick, that kicks up dust. Vanilla sprinting is about 0.28, sprint jumping 0.36.")
+                    .defineInRange("speed", 0.4, 0.1, 10.0);
+            b.pop();
+
             b.push("lifts");
             lifts = b.comment("Crouch and right-click a party member with an empty hand, then stand up, to ride on their back.")
                     .define("enabled", true);
@@ -822,7 +836,7 @@ public final class ZeroConfig {
                     .define("wish", true);
             healWishPerSecond = b.comment("Blocks restored per second after the wish.")
                     .defineInRange("wishBlocksPerSecond", 2000, 1, 20000);
-            healMillisPerTick = b.comment("Most server time healing takes each tick, in ms, shared by every dimension. Many mobs make blocks slower.")
+            healMillisPerTick = b.comment("Most server time healing may use each tick, in ms, shared by every dimension. The rest waits a tick.")
                     .defineInRange("millisPerTick", 1.0, 0.05, 50.0);
             b.pop();
 
@@ -963,10 +977,23 @@ public final class ZeroConfig {
                     .defineInRange("blocksPerDay", 64, 0, 1000);
             b.pop();
 
+            b.push("waterfall");
+            waterfall = b.comment("Standing still under a waterfall pays a little TP every so often, up to a daily count.")
+                    .define("enabled", true);
+            waterfallHeight = b.comment("Blocks of falling water, counted up from your head, that make a waterfall.")
+                    .defineInRange("height", 3, 1, 16);
+            waterfallSeconds = b.comment("Seconds of standing still under the falls for each payment.")
+                    .defineInRange("seconds", 10, 1, 600);
+            waterfallTpShare = b.comment("TP for each payment, as a share of DMZ's TP per hit. 0 pays nothing.")
+                    .defineInRange("tpShare", 0.5, 0.0, 5.0);
+            waterfallPaysPerDay = b.comment("Payments a day. Staying under the falls past it pays nothing until the next in-game day.")
+                    .defineInRange("paysPerDay", 30, 0, 1000);
+            b.pop();
+
             b.push("ajissa");
             ajissaGrowth = b.comment("An Ajissa sapling a Namekian plants grows into a tree within an in-game day.")
                     .define("enabled", true);
-            ajissaHours = b.comment("Longest it takes, in in-game hours. It grows somewhere between a quarter of this and all of it.")
+            ajissaHours = b.comment("Most in-game hours a sapling takes to grow. It grows somewhere between a quarter of this and all of it.")
                     .defineInRange("maxHours", 24.0, 1.0, 240.0);
             b.pop();
 
@@ -1052,7 +1079,7 @@ public final class ZeroConfig {
                     .defineInRange("cooldownSeconds", 2, 0, 60);
             rockClusterBlocks = b.comment("Most blocks one lift holds. Keep the key down to pull more around the first. 1 is a single rock.")
                     .defineInRange("clusterBlocks", 20, 1, 40);
-            rockClusterTicks = b.comment("Ticks between each extra block while you hold the key. 20 ticks are a second.")
+            rockClusterTicks = b.comment("Ticks between each extra block while you hold the key. 20 ticks is 1 second.")
                     .defineInRange("clusterTicks", 4, 1, 40);
             rockClusterRadius = b.comment("How far from the first block, in blocks, the others can come from.")
                     .defineInRange("clusterRadius", 3, 1, 5);

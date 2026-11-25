@@ -147,7 +147,7 @@ public final class Touchdowns {
             BlockState state = level.getBlockState(p);
             if (!MainGameRules.canKiGrief(level, p, player)) continue;
             if (level.destroyBlock(p, false, player)) {
-                WorldHealing.record(level, p, state, level.getBlockState(p), false);
+                WorldHealing.record(level, p, state, level.getBlockState(p), false, player.getUUID());
                 n++;
             }
         }

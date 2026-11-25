@@ -214,16 +214,16 @@ public final class RockLift implements Spell {
         if (!charge(caster, data, ZeroConfig.SERVER.rockKiCost.get())) return tell(caster, "no_ki", "Not enough ki.", false);
         ServerLevel level = caster.serverLevel();
         Cluster c = new Cluster(caster, level, pos);
-        c.rocks.add(tear(level, pos, 0, true));
+        c.rocks.add(tear(level, caster, pos, 0, true));
         HOLDS.put(caster.getUUID(), c);
         if (most(data) > 1) tell(caster, "gathering", "Holding a rock. Keep the key down to pull more.", true);
         else tell(caster, "holding", "Holding a rock. Cast again to throw it.", true);
         return "ok";
     }
 
-    private static Rock tear(ServerLevel level, BlockPos pos, int slot, boolean first) {
+    private static Rock tear(ServerLevel level, ServerPlayer caster, BlockPos pos, int slot, boolean first) {
         BlockState state = level.getBlockState(pos);
-        WorldHealing.record(level, pos, state, Blocks.AIR.defaultBlockState(), false);
+        WorldHealing.record(level, pos, state, Blocks.AIR.defaultBlockState(), false, caster.getUUID());
         FallingBlockEntity block = FallingBlockEntity.fall(level, pos, state);
         block.setNoGravity(true);
         block.disableDrop();
@@ -252,7 +252,7 @@ public final class RockLift implements Spell {
             tell(c.caster, "no_ki_more", "Not enough ki to pull more.", false);
             return;
         }
-        c.rocks.add(tear(c.level, pos, freeSlot(c), false));
+        c.rocks.add(tear(c.level, c.caster, pos, freeSlot(c), false));
         pulled++;
         if (c.rocks.size() >= max) {
             tell(c.caster, "full", "Holding %s rocks, as many as you can.", true, c.rocks.size());

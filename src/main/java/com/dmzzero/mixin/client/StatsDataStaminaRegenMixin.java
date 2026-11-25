@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = StatsData.class, remap = false)
 public abstract class StatsDataStaminaRegenMixin {
 
-    @Inject(method = "getStaminaRegenPerSecond", at = @At("RETURN"), cancellable = true)
+    @Inject(method = "getStaminaRegenPerSecond", at = @At("RETURN"), cancellable = true, require = 0)
     private void dmzzero$tenaciousBody(CallbackInfoReturnable<Double> cir) {
         StatsData data = (StatsData) (Object) this;
         Player player = data.getPlayer();

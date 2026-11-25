@@ -77,7 +77,7 @@ public final class CannonDrill {
                     || !MainGameRules.canKiGrief(level, pos, player)) break;
             BlockPos at = pos.immutable();
             if (!level.destroyBlock(at, false, player)) break;
-            WorldHealing.record(level, at, state, level.getBlockState(at), true);
+            WorldHealing.record(level, at, state, level.getBlockState(at), true, player.getUUID());
             level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, state), at.getX() + 0.5, at.getY() + 0.5, at.getZ() + 0.5,
                     6, 0.25, 0.25, 0.25, 0.05);
             if (n == 0) level.playSound(null, at, state.getSoundType().getBreakSound(), SoundSource.BLOCKS, 1.0f, 0.6f);

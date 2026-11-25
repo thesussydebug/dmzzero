@@ -15,7 +15,7 @@ import java.util.List;
 @Mixin(value = RacialSkillParts.class, remap = false)
 public abstract class RacialSkillPartsMixin {
 
-    @Inject(method = "build", at = @At("RETURN"), cancellable = true)
+    @Inject(method = "build", at = @At("RETURN"), cancellable = true, require = 0)
     private static void dmzzero$tenaciousBody(String racialSkill, boolean android, boolean allVariants,
                                              CallbackInfoReturnable<List<RacialSkillParts.Part>> cir) {
         List<RacialSkillParts.Part> parts = new ArrayList<>(cir.getReturnValue());

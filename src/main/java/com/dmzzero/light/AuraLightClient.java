@@ -110,7 +110,11 @@ public final class AuraLightClient {
         Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
         float[] out = testSource == null ? NONE : testSource.clone();
         int n = out.length / AuraLight.STRIDE;
-        if (!ZeroConfig.CLIENT.kiLight.get()) kiSnapshot = NONE;
+        if (!ZeroConfig.CLIENT.kiLight.get()) {
+            // onJoin keeps adding ki while the light is off; drop the dead ones so the list stays as long as what's flying
+            KI.removeIf(e -> e.isRemoved() || e.level() != mc.level);
+            kiSnapshot = NONE;
+        }
         float[] ki = ZeroConfig.CLIENT.kiLight.get() ? kiSources(mc, eye) : NONE;
         if (ki.length > 0) {
             float[] grown = new float[out.length + ki.length];

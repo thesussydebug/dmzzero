@@ -42,7 +42,6 @@ public final class DietMath {
         return new Food(scaled, modifier);
     }
 
-    /** What a water bottle feeds this diet, or null if it feeds nothing. */
     /** When a senzu bean eaten now stops keeping you fed, in game ticks. */
     public static long senzuUntil(long now, int days) {
         return days <= 0 ? now : now + days * 24000L;
@@ -56,6 +55,7 @@ public final class DietMath {
         return Math.max(a, b);
     }
 
+    /** What a water bottle feeds this diet, or null if it feeds nothing. */
     public static Food water(Diet diet, int hunger, double saturationModifier) {
         if (diet != Diet.NAMEKIAN || hunger <= 0) return null;
         return new Food(hunger, (float) saturationModifier);

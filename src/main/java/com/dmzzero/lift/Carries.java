@@ -71,7 +71,7 @@ public final class Carries {
             case "not_yours" -> "That's someone else's pet.";
             case "too_big" -> "That's too big to pick up.";
             case "riding" -> "Not while it's riding something.";
-            case "full" -> "You're already carrying something, or riding.";
+            case "full" -> "You're already carrying or riding something.";
             case "too_far" -> "Get closer to pick it up.";
             case "down" -> "Not while you're knocked down.";
             default -> "You can't pick that up right now.";

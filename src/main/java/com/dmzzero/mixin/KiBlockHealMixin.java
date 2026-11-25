@@ -1,5 +1,6 @@
 package com.dmzzero.mixin;
 
+import com.dmzzero.heal.HealBlame;
 import com.dmzzero.heal.WorldHealing;
 import com.dragonminez.common.init.entities.ki.AbstractKiProjectile;
 import net.minecraft.core.BlockPos;
@@ -52,7 +53,7 @@ public abstract class KiBlockHealMixin {
         dmzzero$before = null;
         Level level = ((Entity) (Object) this).level();
         if (changed && before != null && level instanceof ServerLevel server) {
-            WorldHealing.record(server, pos, before, level.getBlockState(pos), true);
+            WorldHealing.record(server, pos, before, level.getBlockState(pos), true, HealBlame.playerBehind((Entity) (Object) this));
         }
     }
 }

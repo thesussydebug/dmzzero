@@ -15,11 +15,22 @@ public final class FlightMath {
 
     // the last few server positions; the client sends one a tick, but late packets bunch up, so speed is averaged
     public static final class Track {
-        private final double[] xs = new double[SPAN + 1];
-        private final double[] ys = new double[SPAN + 1];
-        private final double[] zs = new double[SPAN + 1];
+        private final double[] xs;
+        private final double[] ys;
+        private final double[] zs;
         private int count;
         private int head = -1;
+
+        public Track() {
+            this(SPAN);
+        }
+
+        /** Speed averaged over this many ticks. */
+        public Track(int span) {
+            xs = new double[span + 1];
+            ys = new double[span + 1];
+            zs = new double[span + 1];
+        }
 
         public void add(double x, double y, double z) {
             if (count > 0) {

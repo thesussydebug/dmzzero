@@ -116,7 +116,7 @@ public final class ImpactWorld {
         BlockState state = level.getBlockState(pos);
         if (!fragile(state) || !MainGameRules.canKiGrief(level, pos, player)) return false;
         boolean broken = level.destroyBlock(pos, false, player);
-        if (broken) WorldHealing.record(level, pos, state, level.getBlockState(pos), false);
+        if (broken) WorldHealing.record(level, pos, state, level.getBlockState(pos), false, player.getUUID());
         return broken;
     }
 
@@ -181,7 +181,7 @@ public final class ImpactWorld {
         level.levelEvent(2001, pos, Block.getId(state));
         BlockState after = block.defaultBlockState();
         boolean changed = level.setBlock(pos, after, Block.UPDATE_ALL);
-        if (changed) WorldHealing.record(level, pos, state, after, false);
+        if (changed) WorldHealing.record(level, pos, state, after, false, player.getUUID());
         return changed;
     }
 

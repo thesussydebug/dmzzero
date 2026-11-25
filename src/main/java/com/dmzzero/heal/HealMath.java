@@ -1,5 +1,11 @@
 package com.dmzzero.heal;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 public final class HealMath {
     private static final int TICKS_PER_MINUTE = 1200;
 
@@ -51,6 +57,13 @@ public final class HealMath {
     /** A block's usual cost, moved an eighth of the way to the latest one. */
     public static long blockAverage(long average, long latest) {
         return average + (latest - average) / 8;
+    }
+
+    /** Players with the most damaged blocks first. A tie goes by id, so the list reads the same every time. */
+    public static List<Map.Entry<UUID, Integer>> ranked(Map<UUID, Integer> counts) {
+        List<Map.Entry<UUID, Integer>> out = new ArrayList<>(counts.entrySet());
+        out.sort(Map.Entry.<UUID, Integer>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()));
+        return out;
     }
 
     /** A wish still bringing blocks back keeps its rate until a minute after the latest, even past its first end. */

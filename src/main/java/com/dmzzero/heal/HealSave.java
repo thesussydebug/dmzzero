@@ -1,5 +1,6 @@
 package com.dmzzero.heal;
 
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -15,6 +16,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 // per dimension: the damaged blocks waiting to heal (data/dmzzero_healing.dat). block states are saved once each in a palette
 public final class HealSave extends SavedData {
@@ -46,11 +48,20 @@ public final class HealSave extends SavedData {
         int[] original = tag.getIntArray("original");
         int[] left = tag.getIntArray("left");
         long[] due = tag.getLongArray("due");
+        
+        ListTag ownerTags = tag.getList("owners", Tag.TAG_INT_ARRAY);
+        UUID[] owners = new UUID[ownerTags.size()];
+        for (int i = 0; i < owners.length; i++) {
+            int[] id = ownerTags.getIntArray(i);
+            owners[i] = id.length == 4 ? UUIDUtil.uuidFromIntArray(id) : null;
+        }
+        int[] who = tag.getIntArray("who");
         int n = Math.min(Math.min(pos.length, due.length), Math.min(original.length, left.length));
         for (int i = 0; i < n; i++) {
             int o = original[i], l = left[i];
             if (o < 0 || o >= ids.length || l < 0 || l >= ids.length || ids[o] < 0 || ids[l] < 0) continue;
-            s.queue.record(pos[i], ids[o], ids[l], due[i]);
+            int by = i < who.length ? who[i] : 0;
+            s.queue.record(pos[i], ids[o], ids[l], due[i], by > 0 && by <= owners.length ? owners[by - 1] : null);
         }
         return s;
     }
@@ -70,26 +81,37 @@ public final class HealSave extends SavedData {
         HealWriter.write(file, copy);
     }
 
-    /** The saved form of a list, earliest first: each block state once in a palette, then one entry per block. Any thread. */
+
     static CompoundTag write(List<HealQueue.Entry> all, CompoundTag tag) {
         ListTag palette = new ListTag();
         Map<Integer, Integer> index = new HashMap<>();
+        ListTag ownerTags = new ListTag();
+        Map<UUID, Integer> ownerIndex = new HashMap<>();
         long[] pos = new long[all.size()];
         int[] original = new int[all.size()];
         int[] left = new int[all.size()];
         long[] due = new long[all.size()];
+        int[] who = new int[all.size()];
         for (int i = 0; i < all.size(); i++) {
             HealQueue.Entry e = all.get(i);
             pos[i] = e.pos();
             original[i] = slot(e.original(), index, palette);
             left[i] = slot(e.left(), index, palette);
             due[i] = e.due();
+            if (e.by() != null) {
+                who[i] = ownerIndex.computeIfAbsent(e.by(), id -> {
+                    ownerTags.add(NbtUtils.createUUID(id));
+                    return ownerTags.size();
+                });
+            }
         }
         tag.put("palette", palette);
         tag.putLongArray("pos", pos);
         tag.putIntArray("original", original);
         tag.putIntArray("left", left);
         tag.putLongArray("due", due);
+        tag.put("owners", ownerTags);
+        tag.putIntArray("who", who);
         return tag;
     }
 

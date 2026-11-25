@@ -1,6 +1,6 @@
 package com.dmzzero.garden;
 
-/** Pure rules for plowing with bare hands: what a block pays, and the daily count it pays for. */
+/** Pure rules for plowing with bare hands: what a block pays, and the daily count it pays for. Waterfall training pays by them too. */
 public final class PlowMath {
     private static final long DAY = 24_000;
 

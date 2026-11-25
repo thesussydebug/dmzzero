@@ -125,6 +125,8 @@ public final class Scouters {
         if (ch == null) return refuse(from, "no_scouter", "Put a scouter on first.");
         String msg = text.strip();
         if (msg.isEmpty()) return "empty";
+        // /sc takes up to 32k characters, chat only 256
+        if (msg.length() > 256) msg = msg.substring(0, 256);
         String name = from.getGameProfile().getName();
         Component line = prefix(ch).append(Component.literal(name + ": ").withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(msg).withStyle(ChatFormatting.GRAY));
@@ -148,6 +150,7 @@ public final class Scouters {
 
     public static String ping(ServerPlayer from, int entityId, Vec3 at) {
         if (!ZeroConfig.SERVER.scouterPings.get()) return "disabled";
+        if (!from.isAlive() || from.isSpectator()) return "cannot";
         Channel ch = wearing(from);
         if (ch == null) return actionBar(from, "no_scouter", "Put a scouter on first.");
         if (!PINGS.tryPing(from.getUUID(), from.server.getTickCount())) return "cooldown";

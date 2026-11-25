@@ -149,7 +149,7 @@ public final class ChamberDepths {
 
     public static Component descentText(int line) {
         return line == HEAVY
-                ? Component.translatableWithFallback("message.dmzzero.chamber.heavy", "The air gets heavy.. it's hard to breathe.")
+                ? Component.translatableWithFallback("message.dmzzero.chamber.heavy", "The air gets heavy... It's hard to breathe.")
                 : Component.translatableWithFallback("message.dmzzero.chamber.heavier", "heavier...");
     }
 

@@ -2,17 +2,30 @@ package com.dmzzero.heal;
 
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.LongPredicate;
 
-// the blocks of one dimension waiting to heal: where, what was there first, what the damage left, and when it's due.
+// the blocks of one dimension waiting to heal: where, what was there first, what the damage left, who did it, and when it's due.
 // positions are BlockPos.asLong, states are runtime block state ids, so this knows nothing of minecraft.
 // plain arrays, one slot per block, and a heap of slots in due order that knows where each slot sits in it: no boxing,
 // nothing allocated per block, and an update moves the block instead of leaving a stale copy behind
 public final class HealQueue {
-    public record Entry(long pos, int original, int left, long due) {
+    /** by is the player whose damage it was, or null when nobody is known. */
+    public record Entry(long pos, int original, int left, long due, UUID by) {
+    }
+
+    /** Blocks waiting, counted by the player behind them, and the ones no player is known for. */
+    public record Tally(Map<UUID, Integer> byPlayer, int unknown) {
+        public int total() {
+            return unknown + byPlayer.values().stream().mapToInt(Integer::intValue).sum();
+        }
     }
 
     private final Long2IntOpenHashMap slotOf = new Long2IntOpenHashMap();
@@ -22,6 +35,13 @@ public final class HealQueue {
     private long[] due = new long[16];
     // order of damage, for blocks due in the same tick
     private long[] seq = new long[16];
+    // who did it: 0 for nobody known, else the player's place in owners plus one. each player is listed once, however many blocks
+    private int[] who = new int[16];
+    private final List<UUID> owners = new ArrayList<>();
+    private final Object2IntOpenHashMap<UUID> ownerIndex = new Object2IntOpenHashMap<>();
+    // the last player looked up: a carve records hundreds of one player's blocks in a row
+    private UUID lastBy;
+    private int lastIndex;
     private int[] heapAt = new int[16];
     private int[] heap = new int[16];
     private int size;
@@ -31,8 +51,8 @@ public final class HealQueue {
         slotOf.defaultReturnValue(-1);
     }
 
-    /** Damage to one block. Returns whether it's waiting to heal now. */
-    public boolean record(long p, int originalState, int leftState, long dueAt) {
+    /** Damage to one block, by this player or null. Returns whether it's waiting to heal now. */
+    public boolean record(long p, int originalState, int leftState, long dueAt, UUID by) {
         int s = slotOf.get(p);
         if (s >= 0) originalState = original[s];
         if (originalState == leftState) {
@@ -44,11 +64,31 @@ public final class HealQueue {
             left[s] = leftState;
             due[s] = dueAt;
             seq[s] = nextSeq++;
+            who[s] = intern(by);
             resift(heapAt[s]);
         } else {
-            add(p, originalState, leftState, dueAt);
+            add(p, originalState, leftState, dueAt, by);
         }
         return true;
+    }
+
+    /** The player behind the damage waiting here, or null when nobody is known or nothing waits. */
+    public UUID ownerOf(long p) {
+        int s = slotOf.get(p);
+        return s < 0 ? null : ownerAt(s);
+    }
+
+    /** Counts what waits where the test passes, by player. */
+    public Tally tally(LongPredicate where) {
+        int[] counts = new int[owners.size() + 1];
+        for (int s = 0; s < size; s++) {
+            if (where.test(pos[s])) counts[who[s]]++;
+        }
+        Map<UUID, Integer> byPlayer = new HashMap<>();
+        for (int i = 1; i < counts.length; i++) {
+            if (counts[i] > 0) byPlayer.put(owners.get(i - 1), counts[i]);
+        }
+        return new Tally(byPlayer, counts[0]);
     }
 
     public boolean pending(long p) {
@@ -82,7 +122,7 @@ public final class HealQueue {
     /** Puts a taken-out entry back to try again later, unless the block was damaged again since. */
     public void postpone(Entry e, long dueAt) {
         if (pending(e.pos())) return;
-        add(e.pos(), e.original(), e.left(), dueAt);
+        add(e.pos(), e.original(), e.left(), dueAt, e.by());
     }
 
     /**
@@ -153,8 +193,10 @@ public final class HealQueue {
         left = new int[16];
         due = new long[16];
         seq = new long[16];
+        who = new int[16];
         heapAt = new int[16];
         heap = new int[16];
+        forgetOwners();
     }
 
     /** Everything waiting, earliest first, left in place. */
@@ -167,7 +209,7 @@ public final class HealQueue {
     /** A copy of what's waiting, cheap enough for the server thread; it sorts itself wherever it's read. */
     public Snapshot snapshot() {
         return new Snapshot(Arrays.copyOf(pos, size), Arrays.copyOf(original, size), Arrays.copyOf(left, size), Arrays.copyOf(due, size),
-                Arrays.copyOf(seq, size));
+                Arrays.copyOf(seq, size), Arrays.copyOf(who, size), List.copyOf(owners));
     }
 
     /** The list as it stood, slot by slot, for saving it off the server thread. */
@@ -177,13 +219,17 @@ public final class HealQueue {
         private final int[] left;
         private final long[] due;
         private final long[] seq;
+        private final int[] who;
+        private final List<UUID> owners;
 
-        private Snapshot(long[] pos, int[] original, int[] left, long[] due, long[] seq) {
+        private Snapshot(long[] pos, int[] original, int[] left, long[] due, long[] seq, int[] who, List<UUID> owners) {
             this.pos = pos;
             this.original = original;
             this.left = left;
             this.due = due;
             this.seq = seq;
+            this.who = who;
+            this.owners = owners;
         }
 
         public int size() {
@@ -199,7 +245,7 @@ public final class HealQueue {
                 return byDue != 0 ? byDue : Long.compare(seq[a], seq[b]);
             });
             List<Entry> out = new ArrayList<>(order.length);
-            for (int s : order) out.add(new Entry(pos[s], original[s], left[s], due[s]));
+            for (int s : order) out.add(new Entry(pos[s], original[s], left[s], due[s], who[s] == 0 ? null : owners.get(who[s] - 1)));
             return out;
         }
     }
@@ -215,10 +261,36 @@ public final class HealQueue {
     }
 
     private Entry entry(int s) {
-        return new Entry(pos[s], original[s], left[s], due[s]);
+        return new Entry(pos[s], original[s], left[s], due[s], ownerAt(s));
     }
 
-    private void add(long p, int originalState, int leftState, long dueAt) {
+    private UUID ownerAt(int s) {
+        return who[s] == 0 ? null : owners.get(who[s] - 1);
+    }
+
+    // the place of this player in owners plus one, listing them the first time; 0 for nobody
+    private int intern(UUID by) {
+        if (by == null) return 0;
+        if (by == lastBy) return lastIndex;
+        int index = ownerIndex.getInt(by);
+        if (index == 0) {
+            owners.add(by);
+            index = owners.size();
+            ownerIndex.put(by, index);
+        }
+        lastBy = by;
+        lastIndex = index;
+        return index;
+    }
+
+    // with nothing waiting nobody needs remembering, so the list of players doesn't only ever grow
+    private void forgetOwners() {
+        owners.clear();
+        ownerIndex.clear();
+        lastBy = null;
+    }
+
+    private void add(long p, int originalState, int leftState, long dueAt, UUID by) {
         if (size == pos.length) grow();
         int s = size++;
         pos[s] = p;
@@ -226,6 +298,7 @@ public final class HealQueue {
         left[s] = leftState;
         due[s] = dueAt;
         seq[s] = nextSeq++;
+        who[s] = intern(by);
         slotOf.put(p, s);
         place(s, s);
         up(s);
@@ -248,9 +321,11 @@ public final class HealQueue {
             left[s] = left[last];
             due[s] = due[last];
             seq[s] = seq[last];
+            who[s] = who[last];
             place(heapAt[last], s);
             slotOf.put(pos[s], s);
         }
+        if (size == 0) forgetOwners();
     }
 
     private void grow() {
@@ -260,6 +335,7 @@ public final class HealQueue {
         left = Arrays.copyOf(left, n);
         due = Arrays.copyOf(due, n);
         seq = Arrays.copyOf(seq, n);
+        who = Arrays.copyOf(who, n);
         heapAt = Arrays.copyOf(heapAt, n);
         heap = Arrays.copyOf(heap, n);
     }

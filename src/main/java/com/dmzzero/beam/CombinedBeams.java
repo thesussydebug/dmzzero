@@ -136,6 +136,8 @@ public final class CombinedBeams {
 
     /** The KiWaveEntity.tick mixin: a joined beam's length is held at its meeting point. */
     public static float capLength(KiWaveEntity beam, float length) {
+        // CAPS belongs to the server thread; in singleplayer the client's beams tick on another thread and are never in it
+        if (beam.level().isClientSide()) return length;
         Double cap = CAPS.get(beam);
         return cap == null ? length : Math.min(length, cap.floatValue());
     }

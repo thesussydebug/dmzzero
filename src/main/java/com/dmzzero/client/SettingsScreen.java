@@ -53,6 +53,9 @@ public final class SettingsScreen extends Screen {
     private static final int HEADER = 0x1CFFFFFF;
     private static final int HEADER_HOVER = 0x30FFFFFF;
     private static final int ROW_HOVER = 0x16FFFFFF;
+    private static final int RULE = 0x60FFD700;
+    private static final int NUMBER_BOX = 0x70000000;
+    private static final int NUMBER_EDGE = 0x50FFFFFF;
     private static final int FOCUS = 0xC0FFD700;
     private static final int TRACK = 0xFF333333;
     private static final int THUMB = 0xFFAAAAAA;
@@ -78,10 +81,14 @@ public final class SettingsScreen extends Screen {
     private int holdTicks;
     private int optX, optW, valX, valW, panelY, panelH, listTop, listBottom, tabW, doneY;
 
-    private sealed interface Row permits Header, Setting {
+    private sealed interface Row permits Group, Header, Setting {
     }
 
-    private record Header(String section, Component name, int count, boolean open) implements Row {
+    // a top-level part of the config file (fighting, world, ...): a heading only, it doesn't open or close
+    private record Group(String group, Component name) implements Row {
+    }
+
+    private record Header(String section, Component name, List<SettingsTree.Item> items, boolean open) implements Row {
     }
 
     private record Setting(SettingsTree.Item item) implements Row {
@@ -122,7 +129,7 @@ public final class SettingsScreen extends Screen {
         search.setBordered(false);
         search.setMaxLength(64);
         search.setTextColor(WHITE);
-        search.setHint(Component.translatableWithFallback("dmzzero.settings.search", "Search").withStyle(Style.EMPTY.withColor(MUTED)));
+        search.setHint(Component.translatableWithFallback("dmzzero.settings.searchHint", "Type to search").withStyle(Style.EMPTY.withColor(MUTED)));
         search.setValue(query);
         search.setResponder(text -> {
             query = text;
@@ -146,9 +153,16 @@ public final class SettingsScreen extends Screen {
         List<SettingsTree.Item> out = new ArrayList<>();
         for (SettingsTree.Item i : items()) {
             if (label(i).getString().toLowerCase(Locale.ROOT).contains(q) || description(i).getString().toLowerCase(Locale.ROOT).contains(q)
-                    || section(i.section()).getString().toLowerCase(Locale.ROOT).contains(q)) out.add(i);
+                    || section(i.section()).getString().toLowerCase(Locale.ROOT).contains(q)
+                    || section(groupOf(i.section())).getString().toLowerCase(Locale.ROOT).contains(q)) out.add(i);
         }
         return out;
+    }
+
+    // "fighting.impacts" belongs to "fighting"; a group's own settings ("magic", "menus") sit right under its heading
+    static String groupOf(String section) {
+        int dot = section.indexOf('.');
+        return dot < 0 ? section : section.substring(0, dot);
     }
 
     // while searching every section with a match is open
@@ -157,9 +171,15 @@ public final class SettingsScreen extends Screen {
         Map<String, List<SettingsTree.Item>> bySection = new LinkedHashMap<>();
         for (SettingsTree.Item i : matching()) bySection.computeIfAbsent(i.section(), s -> new ArrayList<>()).add(i);
         boolean searching = !query.isBlank();
+        String group = null;
         for (Map.Entry<String, List<SettingsTree.Item>> e : bySection.entrySet()) {
-            boolean isOpen = searching || OPEN.contains(openKey(e.getKey()));
-            rows.add(new Header(e.getKey(), section(e.getKey()), e.getValue().size(), isOpen));
+            String section = e.getKey();
+            if (!groupOf(section).equals(group)) {
+                group = groupOf(section);
+                rows.add(new Group(group, section(group)));
+            }
+            boolean isOpen = section.equals(group) || searching || OPEN.contains(openKey(section));
+            if (!section.equals(group)) rows.add(new Header(section, section(section), e.getValue(), isOpen));
             if (isOpen) for (SettingsTree.Item i : e.getValue()) rows.add(new Setting(i));
         }
         if (selected >= rows.size()) selected = rows.size() - 1;
@@ -189,6 +209,12 @@ public final class SettingsScreen extends Screen {
 
     private static boolean changed(SettingsTree.Item i) {
         return !Objects.equals(i.value().get(), i.value().getDefault());
+    }
+
+    private static int changedCount(List<SettingsTree.Item> items) {
+        int n = 0;
+        for (SettingsTree.Item i : items) if (changed(i)) n++;
+        return n;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -259,14 +285,15 @@ public final class SettingsScreen extends Screen {
         RenderSystem.defaultBlendFunc();
         renderTabs(g, mx, my);
         renderPanel(g, optX, optW, Component.literal("DMZ Zero"));
-        renderPanel(g, valX, valW, Component.translatableWithFallback("dmzzero.settings.values", "Values"));
+        renderPanel(g, valX, valW, changedTitle(changedCount(items())));
         (search.isFocused() ? PanelSkin.FIELD_EDITING : PanelSkin.FIELD).draw(g, optX + 12, panelY + 34, optW - 24, 14);
         int hovered = draggingBar ? -1 : rowAt(mx, my);
         g.enableScissor(optX + 5, listTop, valX + valW - 5, listBottom);
         for (int i = 0; i < rows.size(); i++) {
             int y = rowY(i);
             if (y + ROW <= listTop || y >= listBottom) continue;
-            if (rows.get(i) instanceof Header h) renderHeader(g, h, y, i == hovered);
+            if (rows.get(i) instanceof Group gr) renderGroup(g, gr, y);
+            else if (rows.get(i) instanceof Header h) renderHeader(g, h, y, i == hovered);
             else if (rows.get(i) instanceof Setting s) renderSetting(g, s.item(), y, i == hovered);
             if (i == selected) {
                 g.renderOutline(optLeft() - 1, y, optRight() - optLeft() + 2, ROW - 1, FOCUS);
@@ -289,7 +316,7 @@ public final class SettingsScreen extends Screen {
 
     private void renderTabs(GuiGraphics g, int mx, int my) {
         int x1 = width / 2 - tabW - GAP / 2, x2 = width / 2 + GAP / 2;
-        renderTab(g, x1, Component.translatableWithFallback("dmzzero.settings.client", "Your settings"), !world, true, inside(mx, my, x1, 6, tabW, TAB_H));
+        renderTab(g, x1, Component.translatableWithFallback("dmzzero.settings.client", "Client settings"), !world, true, inside(mx, my, x1, 6, tabW, TAB_H));
         renderTab(g, x2, Component.translatableWithFallback("dmzzero.settings.server", "Server settings"), world, worldEditable(minecraft),
                 inside(mx, my, x2, 6, tabW, TAB_H));
     }
@@ -306,6 +333,18 @@ public final class SettingsScreen extends Screen {
         TextUtil.drawCenteredStringWithBorder(g, font, title.copy().withStyle(ChatFormatting.BOLD), x + w / 2, panelY + 17, GOLD);
     }
 
+    private static Component changedTitle(int changed) {
+        return changed == 0 ? Component.translatableWithFallback("dmzzero.settings.allDefault", "All defaults")
+                : Component.translatableWithFallback("dmzzero.settings.changedCount", "%s changed", changed);
+    }
+
+    // gold like the panel titles, with a rule under it across both columns
+    private void renderGroup(GuiGraphics g, Group gr, int y) {
+        g.drawString(font, fit(gr.name().getString(), optRight() - optLeft() - 4), optLeft() + 2, y + 8, GOLD);
+        g.fill(optLeft(), y + ROW - 2, optRight(), y + ROW - 1, RULE);
+        g.fill(valLeft(), y + ROW - 2, valRight(), y + ROW - 1, RULE);
+    }
+
     private void renderHeader(GuiGraphics g, Header h, int y, boolean hover) {
         g.fill(optLeft(), y + 1, optRight(), y + ROW - 2, hover ? HEADER_HOVER : HEADER);
         g.fill(valLeft(), y + 1, valRight(), y + ROW - 2, hover ? HEADER_HOVER : HEADER);
@@ -316,10 +355,12 @@ public final class SettingsScreen extends Screen {
         g.pose().scale(0.6f, 0.6f, 1);
         g.blit(BUTTONS, -4, -7, 20, 0, 8, 14);
         g.pose().popPose();
-        String count = String.valueOf(h.count());
-        int countW = font.width(count);
-        g.drawString(font, fit(h.name().getString(), optRight() - optLeft() - 24 - countW), optLeft() + 14, y + 6, CYAN);
-        g.drawString(font, count, optRight() - 4 - countW, y + 6, MUTED);
+        g.drawString(font, fit(h.name().getString(), optRight() - optLeft() - 18), optLeft() + 14, y + 6, CYAN);
+        // a closed section still says where the changed settings are
+        int changed = changedCount(h.items());
+        if (changed > 0) {
+            g.drawCenteredString(font, fit(changedTitle(changed).getString(), valRight() - valLeft() - 8), (valLeft() + valRight()) / 2, y + 6, CHANGED);
+        }
     }
 
     private void renderSetting(GuiGraphics g, SettingsTree.Item item, int y, boolean hover) {
@@ -327,7 +368,9 @@ public final class SettingsScreen extends Screen {
             g.fill(optLeft(), y + 1, optRight(), y + ROW - 2, ROW_HOVER);
             g.fill(valLeft(), y + 1, valRight(), y + ROW - 2, ROW_HOVER);
         }
-        g.drawString(font, fit(label(item).getString(), optRight() - optLeft() - 8), optLeft() + 4, y + 6, WHITE);
+        // the edge bar marks a changed setting by shape too, not only by the orange number
+        if (changed(item)) g.fill(optLeft(), y + 2, optLeft() + 2, y + ROW - 3, 0xFF000000 | CHANGED);
+        g.drawString(font, fit(label(item).getString(), optRight() - optLeft() - 8), optLeft() + 5, y + 6, WHITE);
         Object value = item.value().get();
         int vy = y + 5, cx = (valLeft() + valRight()) / 2;
         if (value instanceof Boolean on) {
@@ -335,11 +378,17 @@ public final class SettingsScreen extends Screen {
         } else if (isNumber(item)) {
             g.blit(BUTTONS, valLeft() + 3, vy, 142, atOrPast(value, item.min(), -1) ? 10 : 0, 10, 10);
             g.blit(BUTTONS, valRight() - 13, vy, 0, atOrPast(value, item.max(), 1) ? 10 : 0, 10, 10);
+            // a box says the number can be typed, so the tooltip doesn't have to. not dmz's field skin until typing:
+            // its orange edge would read as "changed"
+            int bx = valLeft() + 15, bw = valRight() - valLeft() - 30;
+            if (item == typingItem) PanelSkin.FIELD_EDITING.draw(g, bx, y + 3, bw, 14);
+            else {
+                g.fill(bx, y + 3, bx + bw, y + 17, NUMBER_BOX);
+                g.renderOutline(bx, y + 3, bw, 14, NUMBER_EDGE);
+            }
             if (item != typingItem) {
                 String text = fit(SettingsText.show(value), valRight() - valLeft() - 34);
                 g.drawCenteredString(font, text, cx, y + 6, changed(item) ? CHANGED : WHITE);
-            } else {
-                PanelSkin.FIELD_EDITING.draw(g, valLeft() + 15, y + 3, valRight() - valLeft() - 30, 14);
             }
         } else {
             g.drawCenteredString(font, fit(SettingsText.show(value), valRight() - valLeft() - 8), cx, y + 6, MUTED);
@@ -373,8 +422,6 @@ public final class SettingsScreen extends Screen {
                     SettingsText.show(i.min()), SettingsText.show(i.max())).withStyle(Style.EMPTY.withColor(MUTED)));
         }
         footer.add(Component.translatableWithFallback("dmzzero.settings.default", "Default: %s", shown(i.value().getDefault()))
-                .withStyle(Style.EMPTY.withColor(MUTED)));
-        if (isNumber(i)) footer.add(Component.translatableWithFallback("dmzzero.settings.type", "Click the number to type one")
                 .withStyle(Style.EMPTY.withColor(MUTED)));
         if (changed(i)) footer.add(Component.translatableWithFallback("dmzzero.settings.reset", "Right-click to reset")
                 .withStyle(Style.EMPTY.withColor(CHANGED)));
@@ -457,13 +504,22 @@ public final class SettingsScreen extends Screen {
         }
     }
 
+    // the next row up or down that can be picked; group headings are skipped
+    private void step(int dir) {
+        int i = selected + dir;
+        while (i >= 0 && i < rows.size() && rows.get(i) instanceof Group) i += dir;
+        if (i >= 0 && i < rows.size()) select(i);
+    }
+
     private void select(int index) {
         if (rows.isEmpty()) return;
         selected = Mth.clamp(index, 0, rows.size() - 1);
-        int y = selected * ROW;
+        // the first row under a heading scrolls the heading into view with it
+        int top = selected > 0 && rows.get(selected - 1) instanceof Group ? selected - 1 : selected;
+        int y = top * ROW, bottom = (selected + 1) * ROW;
         int view = listBottom - listTop;
         if (y < scroll) scroll = y;
-        else if (y + ROW > scroll + view) scroll = y + ROW - view;
+        else if (bottom > scroll + view) scroll = bottom - view;
         scroll = Mth.clamp(scroll, 0, maxScroll());
     }
 
@@ -497,6 +553,7 @@ public final class SettingsScreen extends Screen {
         }
         int index = rowAt(mx, my);
         if (index < 0) return false;
+        if (rows.get(index) instanceof Group) return true;
         selected = index;
         Row row = rows.get(index);
         if (row instanceof Header h) {
@@ -583,14 +640,15 @@ public final class SettingsScreen extends Screen {
             if (key == GLFW.GLFW_KEY_DOWN || key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
                 setFocused(null);
                 search.setFocused(false);
-                select(0);
+                selected = -1;
+                step(1);
                 return true;
             }
             return super.keyPressed(key, scan, mods);
         }
         switch (key) {
-            case GLFW.GLFW_KEY_UP -> select(selected - 1);
-            case GLFW.GLFW_KEY_DOWN -> select(selected + 1);
+            case GLFW.GLFW_KEY_UP -> step(-1);
+            case GLFW.GLFW_KEY_DOWN -> step(1);
             case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER, GLFW.GLFW_KEY_SPACE -> activate(selected);
             case GLFW.GLFW_KEY_LEFT, GLFW.GLFW_KEY_RIGHT -> adjust(selected, key == GLFW.GLFW_KEY_RIGHT ? 1 : -1);
             case GLFW.GLFW_KEY_DELETE -> {
@@ -720,7 +778,8 @@ public final class SettingsScreen extends Screen {
         if (open == null) return -1;
         for (int i = 0; i < open.rows.size(); i++) {
             Row r = open.rows.get(i);
-            if (r instanceof Header h && h.section().equals(key) || r instanceof Setting s && s.item().path().equals(key)) return i;
+            if (r instanceof Group gr && gr.group().equals(key) || r instanceof Header h && h.section().equals(key)
+                    || r instanceof Setting s && s.item().path().equals(key)) return i;
         }
         return -1;
     }
@@ -735,7 +794,7 @@ public final class SettingsScreen extends Screen {
         return i;
     }
 
-    /** The middle of a section's or setting's name, or null when it isn't listed. */
+    /** The middle of a heading's, section's or setting's name, or null when it isn't listed. */
     static int[] row(String key) {
         int i = reveal(key);
         return i < 0 ? null : new int[]{open.optLeft() + 40, open.rowY(i) + ROW / 2};
@@ -748,6 +807,12 @@ public final class SettingsScreen extends Screen {
         int y = open.rowY(i) + ROW / 2;
         int x = which < 0 ? open.valLeft() + 8 : which > 0 ? open.valRight() - 8 : (open.valLeft() + open.valRight()) / 2;
         return new int[]{x, y};
+    }
+
+    /** How many changed settings a listed section's header counts, or -1 when the section isn't listed. */
+    static int changedIn(String section) {
+        int i = indexOf(section);
+        return i >= 0 && open.rows.get(i) instanceof Header h ? changedCount(h.items()) : -1;
     }
 
     static boolean sectionOpen(String section) {

@@ -6,6 +6,7 @@ import com.dmzzero.realm.NullRealm;
 import com.dmzzero.status.TickCost;
 import com.dragonminez.common.init.entities.ki.AbstractKiProjectile;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -39,6 +40,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 // the world heals itself: blocks broken or roughened in ki fights come back after a while, a few at a time,
 // only in loaded chunks and only where the damage is still as it was left
@@ -106,14 +108,14 @@ public final class WorldHealing {
         return HealMath.room(q.pending(pos), q.size(), ZeroConfig.SERVER.healMaxBlocks.get());
     }
 
-    /** A block was changed by a ki fight: remember what it was so it can come back. */
-    public static void record(ServerLevel level, BlockPos pos, BlockState before, BlockState after, boolean kiBlast) {
+    /** A block was changed by a ki fight: remember what it was so it can come back, and which player did it (null if none). */
+    public static void record(ServerLevel level, BlockPos pos, BlockState before, BlockState after, boolean kiBlast, UUID by) {
         if (before == after || !heals(level, before, kiBlast)) return;
-        remember(level, pos, before, after);
+        remember(level, pos, before, after, by);
     }
 
     // returns whether it's waiting to heal now
-    private static boolean remember(ServerLevel level, BlockPos pos, BlockState before, BlockState after) {
+    private static boolean remember(ServerLevel level, BlockPos pos, BlockState before, BlockState after, UUID by) {
         long p = pos.asLong();
         // one lookup: a full carve tick records up to 8192 blocks
         HealSave save = HealSave.get(level);
@@ -121,7 +123,7 @@ public final class WorldHealing {
             refuse(level);
             return false;
         }
-        boolean waiting = save.queue().record(p, Block.getId(before), Block.getId(after), HealMath.due(level.getGameTime(), ZeroConfig.SERVER.healMinutes.get()));
+        boolean waiting = save.queue().record(p, Block.getId(before), Block.getId(after), HealMath.due(level.getGameTime(), ZeroConfig.SERVER.healMinutes.get()), by);
         if (waiting) recorded++;
         save.setDirty();
         return waiting;
@@ -145,7 +147,8 @@ public final class WorldHealing {
     public static void onDetonate(ExplosionEvent.Detonate event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         Explosion explosion = event.getExplosion();
-        if (!(explosion.getDirectSourceEntity() instanceof AbstractKiProjectile) || !explosion.interactsWithBlocks()) return;
+        if (!(explosion.getDirectSourceEntity() instanceof AbstractKiProjectile shot) || !explosion.interactsWithBlocks()) return;
+        UUID by = HealBlame.playerBehind(shot);
         Iterator<BlockPos> it = event.getAffectedBlocks().iterator();
         while (it.hasNext()) {
             BlockPos pos = it.next();
@@ -158,7 +161,7 @@ public final class WorldHealing {
             }
             BlockState after = level.getFluidState(pos).createLegacyBlock();
             if (!level.setBlock(pos, after, Block.UPDATE_ALL)) continue;
-            record(level, pos, before, after, true);
+            record(level, pos, before, after, true, by);
             it.remove();
         }
     }
@@ -184,7 +187,8 @@ public final class WorldHealing {
         HealQueue q = HealSave.get(level).queue();
         // rock lift's rocks are already waiting where they came from
         if (q.pending(from.asLong()) || !q.pending(from.below().asLong()) || state.isAir() || state.hasBlockEntity()) return;
-        if (!remember(level, from, state, level.getBlockState(from))) return;
+        // it fell because of whoever damaged the block under it
+        if (!remember(level, from, state, level.getBlockState(from), q.ownerOf(from.below().asLong()))) return;
         // not disableDrop(), which stops it landing as a block too
         block.dropItem = false;
         tag.putLong(FELL_FROM, from.asLong());
@@ -365,17 +369,35 @@ public final class WorldHealing {
                         .then(Commands.literal("forget")
                                 .requires(src -> src.hasPermission(2))
                                 .executes(ctx -> forget(ctx.getSource())))
+                        .then(Commands.literal("who")
+                                .requires(src -> src.hasPermission(2))
+                                .executes(ctx -> who(ctx.getSource(), HealBlame.DEFAULT_RADIUS))
+                                .then(Commands.argument("radius", IntegerArgumentType.integer(1, HealBlame.MAX_RADIUS))
+                                        .executes(ctx -> who(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))))
                         .then(Commands.literal("wish")
                                 .requires(src -> src.hasPermission(2))
                                 .executes(ctx -> wished(ctx.getSource())))));
     }
 
+    private static boolean healingOn(CommandSourceStack src) {
+        if (ZeroConfig.SERVER.healing.get()) return true;
+        src.sendFailure(Component.translatableWithFallback("dmzzero.heal.off", "The world doesn't heal itself on this server."));
+        return false;
+    }
+
+    // the players behind the damage waiting to heal in a cube around the command's source
+    private static int who(CommandSourceStack src, int radius) {
+        if (!healingOn(src)) return 0;
+        BlockPos at = BlockPos.containing(src.getPosition());
+        HealQueue.Tally tally = HealSave.get(src.getLevel()).queue().tally(p -> Math.abs(BlockPos.getX(p) - at.getX()) <= radius
+                && Math.abs(BlockPos.getY(p) - at.getY()) <= radius && Math.abs(BlockPos.getZ(p) - at.getZ()) <= radius);
+        for (Component line : HealBlame.lines(src.getServer(), tally, radius)) src.sendSuccess(() -> line, false);
+        return tally.total();
+    }
+
     private static int status(CommandSourceStack src) {
         ServerLevel level = src.getLevel();
-        if (!ZeroConfig.SERVER.healing.get()) {
-            src.sendFailure(Component.translatableWithFallback("dmzzero.heal.off", "The world doesn't heal itself on this server."));
-            return 0;
-        }
+        if (!healingOn(src)) return 0;
         HealQueue q = HealSave.get(level).queue();
         if (q.size() == 0) {
             src.sendSuccess(() -> Component.translatableWithFallback("dmzzero.heal.none", "Nothing here is waiting to heal."), false);

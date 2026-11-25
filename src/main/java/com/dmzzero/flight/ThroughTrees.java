@@ -45,7 +45,7 @@ public final class ThroughTrees {
             if (!breaks(state) || !MainGameRules.canKiGrief(level, pos, player)) continue;
             BlockPos hit = pos.immutable();
             if (level.destroyBlock(hit, false, player)) {
-                WorldHealing.record(level, hit, state, level.getBlockState(hit), false);
+                WorldHealing.record(level, hit, state, level.getBlockState(hit), false, player.getUUID());
                 n++;
             }
         }

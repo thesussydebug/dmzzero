@@ -13,6 +13,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -114,6 +115,12 @@ public final class SenseClient {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         SENSES.clear();
+    }
+
+    // a marker points at coordinates in the dimension it was felt in
+    @SubscribeEvent
+    public static void onUnload(LevelEvent.Unload event) {
+        if (event.getLevel().isClientSide()) SENSES.clear();
     }
 
     public static int feltCount() {

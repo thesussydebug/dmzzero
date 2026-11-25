@@ -15,7 +15,7 @@ public abstract class StatsScreenHexagonMixin {
     @Shadow
     private StatsData statsData;
 
-    @Redirect(method = "drawHexagon", at = @At(value = "INVOKE",
+    @Redirect(method = "drawHexagon", require = 0, at = @At(value = "INVOKE",
             target = "Lcom/dragonminez/common/stats/character/Character;getAuraColor()Ljava/lang/String;"))
     private String dmzzero$formColor(Character character) {
         return AuraHexagon.color(statsData, character);

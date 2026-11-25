@@ -54,7 +54,7 @@ public final class Leaves {
             BlockState state = level.getBlockState(pos);
             if (!MainGameRules.canKiGrief(level, pos, player)) continue;
             if (level.destroyBlock(pos, false, player)) {
-                WorldHealing.record(level, pos, state, level.getBlockState(pos), false);
+                WorldHealing.record(level, pos, state, level.getBlockState(pos), false, player.getUUID());
                 n++;
             }
         }

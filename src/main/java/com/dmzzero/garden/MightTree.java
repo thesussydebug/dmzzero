@@ -298,7 +298,7 @@ public final class MightTree {
         for (long d : t.drained()) {
             BlockPos p = BlockPos.of(d);
             if (!level.isLoaded(p) || !level.getBlockState(p).is(Blocks.COARSE_DIRT)) continue;
-            if (WorldHealing.willRecord(level, p, grass, false)) WorldHealing.record(level, p, grass, level.getBlockState(p), false);
+            if (WorldHealing.willRecord(level, p, grass, false)) WorldHealing.record(level, p, grass, level.getBlockState(p), false, t.owner());
             else level.setBlock(p, grass, Block.UPDATE_ALL);
         }
         tellOwner(level, t, "withered", "Your Tree of Might withers away, and the land starts to heal.");

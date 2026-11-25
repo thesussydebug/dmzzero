@@ -123,12 +123,13 @@ public final class Diets {
         return true;
     }
 
+    // CakeBlock.eat runs on the client too, and in singleplayer the client thread would clear the server's eater mid-bite
     public static void startCake(Player player) {
-        cakeEater = player;
+        if (!player.level().isClientSide()) cakeEater = player;
     }
 
-    public static void endCake() {
-        cakeEater = null;
+    public static void endCake(Player player) {
+        if (!player.level().isClientSide()) cakeEater = null;
     }
 
     private static void eatAs(FoodData food, Food values) {

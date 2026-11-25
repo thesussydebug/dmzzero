@@ -38,6 +38,8 @@ public final class TrainingScreen extends Screen {
     private EditBox search;
     private boolean typing = true;
     private int scroll;
+    // a rebuild drops focus, so a Page Up or Down moves it to the first Fight on the new page
+    private boolean paged;
 
     private TrainingMenuS2C.Foe picking;
     private EditBox howMany;
@@ -103,6 +105,11 @@ public final class TrainingScreen extends Screen {
         return Math.min(width - 16, 460);
     }
 
+    private String fit(String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) return text;
+        return font.plainSubstrByWidth(text, Math.max(0, maxWidth - font.width("..."))) + "...";
+    }
+
     private int left() {
         return (width - listWidth()) / 2;
     }
@@ -129,21 +136,28 @@ public final class TrainingScreen extends Screen {
             search.setValue(query);
             search.setResponder(this::searched);
         }
-        search.setX(left);
-        search.setWidth(listWidth());
-        addRenderableWidget(search);
-        if (typing) setFocused(search);
+        // added top to bottom, so Tab follows the layout
         if (menu.out() > 0) {
             addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.clear", "Send away"), b -> send("dmzzero training clear"))
                     .bounds(right - 80, 22, 80, 16).build());
         }
+        search.setX(left);
+        search.setWidth(listWidth());
+        addRenderableWidget(search);
+        if (typing) setFocused(search);
         int last = Math.min(rows.size(), scroll + visibleRows());
         for (int i = scroll; i < last; i++) {
             TrainingMenuS2C.Foe foe = rows.get(i).foe();
             if (foe == null) continue;
             int y = TOP + (i - scroll) * ROW + (ROW - BUTTON_H) / 2;
-            addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.fight", "Fight"), b -> fight(foe))
+            // every row's button says Fight, so the narrator also names who
+            Button button = addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.fight", "Fight"), b -> fight(foe))
+                    .createNarration(plain -> Component.translatableWithFallback("gui.dmzzero.training.fight_who", "Fight %s", TrainingText.name(foe)))
                     .bounds(right - BUTTON_W - 4, y, BUTTON_W, BUTTON_H).build());
+            if (paged && !typing) {
+                setFocused(button);
+                paged = false;
+            }
         }
         addRenderableWidget(Button.builder(Component.translatableWithFallback("gui.dmzzero.training.close", "Close"), b -> onClose())
                 .bounds(width / 2 - 40, height - 26, 80, 20).build());
@@ -201,7 +215,8 @@ public final class TrainingScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int modifiers) {
         if (picking != null) {
-            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+            // a button reached with Tab presses itself, so Enter on Back goes back
+            if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) && !(getFocused() instanceof Button)) {
                 spawn();
                 return true;
             }
@@ -209,6 +224,12 @@ public final class TrainingScreen extends Screen {
                 back();
                 return true;
             }
+        } else if (key == GLFW.GLFW_KEY_PAGE_DOWN || key == GLFW.GLFW_KEY_PAGE_UP) {
+            // Tab only reaches the rows on screen, so the keyboard needs its own way down the list
+            paged = true;
+            scrollTo(scroll + (key == GLFW.GLFW_KEY_PAGE_DOWN ? visibleRows() : -visibleRows()));
+            paged = false;
+            return true;
         }
         return super.keyPressed(key, scan, modifiers);
     }
@@ -220,13 +241,16 @@ public final class TrainingScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (picking != null) return true;
-        int next = Mth.clamp(scroll - (int) Math.signum(delta) * 3, 0, maxScroll());
+        if (picking == null) scrollTo(scroll - (int) Math.signum(delta) * 3);
+        return true;
+    }
+
+    private void scrollTo(int row) {
+        int next = Mth.clamp(row, 0, maxScroll());
         if (next != scroll) {
             scroll = next;
             refresh();
         }
-        return true;
     }
 
     @Override
@@ -248,10 +272,10 @@ public final class TrainingScreen extends Screen {
             int textW = width - 12 - (row.foe() == null ? 0 : BUTTON_W + 4);
             boolean twoLines = !row.detail().getString().isEmpty() && !row.text().getString().isEmpty();
             if (!row.text().getString().isEmpty()) {
-                g.drawString(font, font.plainSubstrByWidth(row.text().getString(), textW), left + 6, twoLines ? y + 3 : y + 8, row.header() ? GOLD : WHITE);
+                g.drawString(font, fit(row.text().getString(), textW), left + 6, twoLines ? y + 3 : y + 8, row.header() ? GOLD : WHITE);
             }
             if (!row.detail().getString().isEmpty()) {
-                g.drawString(font, font.plainSubstrByWidth(row.detail().getString(), textW), left + 6, twoLines ? y + 13 : y + 8, MUTED);
+                g.drawString(font, fit(row.detail().getString(), textW), left + 6, twoLines ? y + 13 : y + 8, row.header() ? WHITE : MUTED);
             }
         }
         if (rows.isEmpty()) {
@@ -259,7 +283,7 @@ public final class TrainingScreen extends Screen {
                     this.width / 2, TOP + 10, MUTED);
         }
         if (maxScroll() > 0) {
-            g.drawCenteredString(font, Component.translatableWithFallback("gui.dmzzero.training.scroll", "%s to %s of %s, scroll for more",
+            g.drawCenteredString(font, Component.translatableWithFallback("gui.dmzzero.training.scroll", "%s to %s of %s. Scroll or press Page Down for more.",
                     scroll + 1, last, rows.size()), this.width / 2, height - 38, MUTED);
         }
         super.render(g, mouseX, mouseY, partialTick);

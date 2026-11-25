@@ -2,6 +2,7 @@ package com.dmzzero.garden;
 
 import com.dmzzero.DMZZero;
 import com.dmzzero.ZeroConfig;
+import com.dmzzero.heal.HealSave;
 import com.dmzzero.status.TickCost;
 import com.dragonminez.common.stats.StatsCapability;
 import com.dragonminez.common.stats.StatsData;
@@ -82,7 +83,8 @@ public final class AjissaGrowth {
             if (!level.isLoaded(pos)) continue;
             BlockState state = level.getBlockState(pos);
             if (!state.is(sapling) || !(state.getBlock() instanceof SaplingBlock block)) {
-                save.forget(s.pos());
+                // a sapling blasted by ki keeps its place while the world heals it back, as senzu bushes do
+                if (!HealSave.get(level).queue().pending(s.pos())) save.forget(s.pos());
                 continue;
             }
             if (now < s.due()) continue;

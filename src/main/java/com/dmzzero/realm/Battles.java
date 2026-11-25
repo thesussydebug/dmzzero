@@ -577,7 +577,7 @@ public final class Battles {
         if (va != null && va == aa && va.endedAt < 0 && va.fight.standing(victim.getUUID()) && va.fight.standing(attacker.getUUID())) {
             if (va.fight.fighting(now)) return;
             event.setCanceled(true);
-            attacker.displayClientMessage(Component.translatableWithFallback("message.dmzzero.battle.wait", "Wait for the countdown.")
+            attacker.displayClientMessage(Component.translatableWithFallback("message.dmzzero.battle.countdown", "Wait for the countdown.")
                     .withStyle(ChatFormatting.GRAY), true);
             return;
         }
