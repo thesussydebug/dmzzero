@@ -2,7 +2,7 @@ package com.dmzzero.charge;
 
 import com.dmzzero.beam.BeamMath.V;
 
-// overcharging a technique pulls dust and specks of light in toward your hands
+// overcharging a technique pulls ki specks and dust in toward your hands
 public final class GatherMath {
     /** DMZ holds a technique's charge up to 175%. */
     public static final float FULL_AT = 175f;
@@ -28,8 +28,10 @@ public final class GatherMath {
         return hands.add(unit.scale(radius));
     }
 
-    public static V velocity(V from, V to, int ticks) {
+    /** The starting speed that carries a particle to a point in this many ticks, when it keeps {@code drag} of its speed each tick. */
+    public static V velocity(V from, V to, int ticks, double drag) {
         if (ticks <= 0) return new V(0, 0, 0);
-        return to.sub(from).scale(1.0 / ticks);
+        double reach = drag >= 1 ? ticks : (1 - Math.pow(drag, ticks)) / (1 - drag);
+        return to.sub(from).scale(1.0 / reach);
     }
 }

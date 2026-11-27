@@ -1,7 +1,9 @@
 package com.dmzzero.client;
 
 import com.dmzzero.DMZZero;
+import com.dmzzero.network.ZeroNetwork;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -19,7 +21,18 @@ public final class ZeroKeys {
 
     /** Every DMZ Zero key. A new key goes in this list, not in an event handler of its own. */
     public static List<KeyMapping> all() {
-        return List.of(ScouterClient.PING, BeamCancelKey.CANCEL, TrainingKey.OPEN);
+        return List.of(ScouterClient.PING, BeamCancelKey.CANCEL, TrainingKey.OPEN, TechniqueSetKey.NEXT);
+    }
+
+    /** Runs a DMZ Zero command for each press in the world, when the server has DMZ Zero. */
+    static void sendOnPress(KeyMapping key, String command) {
+        Minecraft mc = Minecraft.getInstance();
+        while (key.consumeClick()) {
+            if (mc.player != null && mc.screen == null && mc.getConnection() != null
+                    && ZeroNetwork.CHANNEL.isRemotePresent(mc.getConnection().getConnection())) {
+                mc.player.connection.sendCommand(command);
+            }
+        }
     }
 
     @SubscribeEvent

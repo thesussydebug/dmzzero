@@ -131,7 +131,7 @@ public final class Scouters {
         Component line = prefix(ch).append(Component.literal(name + ": ").withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(msg).withStyle(ChatFormatting.GRAY));
         for (ServerPlayer p : everyone(from.server)) {
-            if (wearing(p) != ch) continue;
+            if (wearing(p) != ch || ScouterMutes.muted(p, from)) continue;
             p.sendSystemMessage(line);
             pip(p);
             LAST_HEARD.put(p.getUUID(), name + ": " + msg);
@@ -172,7 +172,7 @@ public final class Scouters {
         ScouterPingS2C msg = new ScouterPingS2C(ScouterPingS2C.PING, ch.ordinal(), sender, label, pos.x, y, pos.z, target != null ? target.getId() : -1, bp, 0);
         Component elsewhere = null;
         for (ServerPlayer p : everyone(from.server)) {
-            if (wearing(p) != ch) continue;
+            if (wearing(p) != ch || ScouterMutes.muted(p, from)) continue;
             if (p.level() == from.level()) {
                 ZeroNetwork.send(p, msg);
                 LAST_PING.put(p.getUUID(), msg);

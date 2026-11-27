@@ -31,12 +31,13 @@ public final class StrikeCallouts {
     }
 
     public static void send(ServerPlayer p, String name, String technique, int color) {
-        String clean = CalloutMath.clean(name);
+        // a lang key goes whole, for the client to translate; typed names are cut to a callout's length
+        String sendable = CalloutMath.isNameKey(name) && name.length() <= CalloutS2C.MAX_TEXT ? name : CalloutMath.clean(name);
         String id = technique == null || technique.length() > CalloutS2C.MAX_TEXT ? "" : technique;
-        if (clean == null && id.isEmpty()) return;
-        ZeroNetwork.sendAround(p.serverLevel(), p.position(), RANGE, new CalloutS2C(p.getId(), clean == null ? "" : clean, id, color));
+        if (sendable == null && id.isEmpty()) return;
+        ZeroNetwork.sendAround(p.serverLevel(), p.position(), RANGE, new CalloutS2C(p.getId(), sendable == null ? "" : sendable, id, color));
         sent++;
-        last = clean == null ? id : clean;
+        last = sendable == null ? id : sendable;
     }
 
     public static int sent() {

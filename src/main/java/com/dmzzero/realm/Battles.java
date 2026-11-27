@@ -647,18 +647,17 @@ public final class Battles {
         for (Battle b : BATTLES) {
             for (UUID party : b.lifted) com.dmzzero.duel.PartyLift.drop(event.getServer(), party);
             b.lifted.clear();
-        }
-    }
-
-    @SubscribeEvent
-    public static void onServerStopped(ServerStoppedEvent event) {
-        // players left in the realm are sent home the next time they log in
-        for (Battle b : BATTLES) {
+            // before the players are saved, as a stopping server logs nobody out. those left in the realm are sent home
+            // the next time they log in
             for (UUID id : b.fight.fighters()) {
                 ServerPlayer p = b.players.get(id);
                 if (p != null && !b.home.contains(id)) restore(b, p);
             }
         }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
         BATTLES.clear();
         LAST_HIT.clear();
         TEST_PLAYERS.clear();

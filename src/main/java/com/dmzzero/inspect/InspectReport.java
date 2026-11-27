@@ -31,7 +31,7 @@ public final class InspectReport {
                         String rival, int rivalWins, int rivalLosses, String rivalSince, boolean rivalShadow,
                         int duelWins, int duelLosses, int duelDraws, int battlesPlayed, int battlesWon, int battleKos,
                         List<String> knownKi, int firstForms, int fusions, boolean destructionOff, boolean realmReturn,
-                        List<Line> now) {
+                        boolean duelsOff, List<String> scouterMutes, List<Line> now) {
 
         public static Builder builder(String name) {
             return new Builder(name);
@@ -60,6 +60,8 @@ public final class InspectReport {
             private int fusions;
             private boolean destructionOff;
             private boolean realmReturn;
+            private boolean duelsOff;
+            private List<String> scouterMutes = List.of();
             private final List<Line> now = new ArrayList<>();
 
             private Builder(String name) {
@@ -127,6 +129,16 @@ public final class InspectReport {
                 return this;
             }
 
+            public Builder duelsOff(boolean off) {
+                this.duelsOff = off;
+                return this;
+            }
+
+            public Builder scouterMutes(List<String> names) {
+                this.scouterMutes = List.copyOf(names);
+                return this;
+            }
+
             public Builder now(Line line) {
                 this.now.add(line);
                 return this;
@@ -135,7 +147,7 @@ public final class InspectReport {
             public Facts build() {
                 return new Facts(name, online, race, form, potential, awakened, rival, rivalWins, rivalLosses, rivalSince, rivalShadow,
                         duelWins, duelLosses, duelDraws, battlesPlayed, battlesWon, battleKos, knownKi, firstForms, fusions,
-                        destructionOff, realmReturn, List.copyOf(now));
+                        destructionOff, realmReturn, duelsOff, scouterMutes, List.copyOf(now));
             }
         }
     }
@@ -165,6 +177,8 @@ public final class InspectReport {
         }
 
         out.add(line("duels", "Duels: %s won, %s lost, %s drawn.", f.duelWins(), f.duelLosses(), f.duelDraws()));
+        if (f.duelsOff()) out.add(line("duels_off", "Turns duel challenges away."));
+        if (!f.scouterMutes().isEmpty()) out.add(line("scouter_mutes", "Muted on their scouter: %s.", names(f.scouterMutes(), MAX_NAMES)));
         out.add(line("battles", "Null Realm battles: %s played, %s won, %s knockouts.", f.battlesPlayed(), f.battlesWon(), f.battleKos()));
 
         out.add(f.knownKi().isEmpty()

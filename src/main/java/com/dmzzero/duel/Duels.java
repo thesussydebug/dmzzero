@@ -39,6 +39,7 @@ import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -55,10 +56,11 @@ import java.util.UUID;
 // one-on-one fights in a ring: knockdowns instead of deaths, nobody else gets a hit in
 @Mod.EventBusSubscriber(modid = DMZZero.MOD_ID)
 public final class Duels {
-    private static final int COST = TickCost.id("versus.duels", () -> Duels.ARENAS.size() + Duels.GET_UP.size());
+    private static final int COST = TickCost.id("versus.duels", () -> Duels.ARENAS.size() + Duels.GET_UP.size() + Duels.CHALLENGES.waits());
     private static final int GET_UP_DELAY = 40;
     private static final DustParticleOptions EDGE = new DustParticleOptions(new Vector3f(1f, 0.55f, 0.1f), 1.6f);
-    private static final DuelMath.Challenges CHALLENGES = new DuelMath.Challenges(() -> ZeroConfig.SERVER.challengeSeconds.get() * 20);
+    private static final DuelMath.Challenges CHALLENGES = new DuelMath.Challenges(
+            () -> ZeroConfig.SERVER.challengeSeconds.get() * 20, () -> ZeroConfig.SERVER.duelDeclineWait.get() * 20);
     private static final List<Arena> ARENAS = new ArrayList<>();
     private static final Map<UUID, Long> GET_UP = new HashMap<>();
     private static int finished;
@@ -105,6 +107,11 @@ public final class Duels {
         if (!ZeroConfig.SERVER.duels.get()) return refuse(from, "disabled", "Duels are turned off on this server.");
         if (from == to) return refuse(from, "self", "You can't duel yourself.");
         if (!hasCharacter(from) || !hasCharacter(to)) return refuse(from, "no_character", "Both of you need a character first.");
+        if (ZeroConfig.SERVER.duelOptOut.get() && DuelMath.optedOut(to.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG)))
+            return refuse(from, "opted_out", "%s isn't taking duel challenges.", to.getGameProfile().getName());
+        long wait = CHALLENGES.waitLeft(from.getUUID(), to.getUUID(), from.server.getTickCount());
+        if (wait > 0)
+            return refuse(from, "declined_wait", "%s turned you down. You can ask again in %s seconds.", to.getGameProfile().getName(), (wait + 19) / 20);
         if (arena(from) != null) return refuse(from, "busy", "You're already in a duel.");
         if (arena(to) != null) return refuse(from, "target_busy", "%s is already in a duel.", to.getGameProfile().getName());
         if (elsewhere(from)) return refuse(from, "elsewhere", "You can't duel right now. Finish your other fight first.");
@@ -158,8 +165,21 @@ public final class Duels {
         return "ok";
     }
 
+    /** /dmzzero duel off and on: whether others may challenge this player. */
+    public static String setOptOut(ServerPlayer p, boolean optOut) {
+        if (!ZeroConfig.SERVER.duelOptOut.get()) return refuse(p, "opt_out_disabled", "This server doesn't let players turn challenges away.");
+        CompoundTag persisted = p.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
+        DuelMath.setOptedOut(persisted, optOut);
+        p.getPersistentData().put(Player.PERSISTED_NBT_TAG, persisted);
+        p.sendSystemMessage((optOut
+                ? Component.translatableWithFallback("message.dmzzero.duel.opt_out", "You're turning duel challenges away. /dmzzero duel on takes them again.")
+                : Component.translatableWithFallback("message.dmzzero.duel.opt_in", "You're taking duel challenges again."))
+                .withStyle(ChatFormatting.GRAY));
+        return "ok";
+    }
+
     public static String decline(ServerPlayer to, ServerPlayer from) {
-        if (!CHALLENGES.take(from.getUUID(), to.getUUID(), to.server.getTickCount()))
+        if (!CHALLENGES.decline(from.getUUID(), to.getUUID(), to.server.getTickCount()))
             return refuse(to, "no_challenge", "%s hasn't challenged you (or it ran out).", from.getGameProfile().getName());
         from.sendSystemMessage(Component.translatableWithFallback("message.dmzzero.duel.declined", "%s turned down your duel.",
                 to.getGameProfile().getName()).withStyle(ChatFormatting.GRAY));
@@ -235,15 +255,18 @@ public final class Duels {
         if (!GET_UP.isEmpty()) {
             GET_UP.entrySet().removeIf(e -> {
                 if (now < e.getValue()) return false;
-                ServerPlayer p = server.getPlayerList().getPlayer(e.getKey());
-                StatsData data = p != null ? stats(p) : null;
-                if (data != null && data.getStatus().isKnockedDown()) {
-                    CombatEvent.releaseKnockdown(p, data);
-                    if (p.getHealth() < p.getMaxHealth() * 0.5f) p.setHealth(p.getMaxHealth() * 0.5f);
-                }
+                getUp(server.getPlayerList().getPlayer(e.getKey()));
                 return true;
             });
         }
+    }
+
+    // up again after a duel's knockdown, with at least half health
+    private static void getUp(ServerPlayer p) {
+        StatsData data = p != null ? stats(p) : null;
+        if (data == null || !data.getStatus().isKnockedDown()) return;
+        CombatEvent.releaseKnockdown(p, data);
+        if (p.getHealth() < p.getMaxHealth() * 0.5f) p.setHealth(p.getMaxHealth() * 0.5f);
     }
 
     private static DuelMath.Outcome tick(MinecraftServer server, Arena arena, long now) {
@@ -314,12 +337,7 @@ public final class Duels {
     static void end(Arena arena, DuelMath.Outcome o, long now) {
         finished++;
         lastOutcome = o;
-        restore(arena.a, arena.aFist);
-        restore(arena.b, arena.bFist);
-        if (arena.party != null) {
-            PartyLift.drop(arena.level.getServer(), arena.party);
-            arena.party = null;
-        }
+        release(arena);
         String an = arena.a.getGameProfile().getName(), bn = arena.b.getGameProfile().getName();
         Component news;
         if (o.draw()) {
@@ -369,6 +387,16 @@ public final class Duels {
             case LOGGED_OUT -> Component.translatableWithFallback("title.dmzzero.duel.logged_out", "Forfeit");
             case TIME -> Component.translatableWithFallback("title.dmzzero.duel.time", "Time's up");
         };
+    }
+
+    // what a duel changed on its fighters and their party, put back
+    private static void release(Arena arena) {
+        restore(arena.a, arena.aFist);
+        restore(arena.b, arena.bFist);
+        if (arena.party != null) {
+            PartyLift.drop(arena.level.getServer(), arena.party);
+            arena.party = null;
+        }
     }
 
     private static void restore(ServerPlayer p, boolean fist) {
@@ -444,12 +472,18 @@ public final class Duels {
         }
     }
 
+    // a stopping server saves its players without logging them out, so duels are called off before that save, with no
+    // result: nobody is kept with friendly fist on or lying knocked down
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        ARENAS.forEach(Duels::release);
+        ARENAS.clear();
+        GET_UP.keySet().forEach(id -> getUp(event.getServer().getPlayerList().getPlayer(id)));
+        GET_UP.clear();
+    }
+
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
-        for (Arena arena : ARENAS) {
-            restore(arena.a, arena.aFist);
-            restore(arena.b, arena.bFist);
-        }
         ARENAS.clear();
         CHALLENGES.clear();
         GET_UP.clear();
@@ -484,6 +518,11 @@ public final class Duels {
         if (arena == null) return;
         ARENAS.remove(arena);
         end(arena, new DuelMath.Outcome(null, null, DuelMath.Reason.TIME), p.server.getTickCount());
+    }
+
+    // drops open challenges and decline waits (self-test cleanup)
+    public static void forgetChallenges() {
+        CHALLENGES.clear();
     }
 
     public static int[] score(ServerPlayer p) {

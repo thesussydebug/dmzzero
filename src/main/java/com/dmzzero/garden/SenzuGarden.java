@@ -3,7 +3,9 @@ package com.dmzzero.garden;
 import com.dmzzero.DMZZero;
 import com.dmzzero.ZeroConfig;
 import com.dmzzero.heal.HealSave;
+import com.dmzzero.scouter.Scouters;
 import com.dmzzero.status.TickCost;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -55,6 +57,7 @@ import java.util.UUID;
 public final class SenzuGarden {
     static final ResourceLocation SENZU = new ResourceLocation("dragonminez", "senzu_bean");
     static final ResourceLocation KORIN = new ResourceLocation("dragonminez", "master_karin");
+    private static final int CHECK_TICKS = 20;
     private static final Set<ResourceKey<Level>> GROWING = new HashSet<>();
     private static final int COST = TickCost.id("world.senzuGarden", GROWING::size);
 
@@ -158,7 +161,7 @@ public final class SenzuGarden {
 
     @SubscribeEvent
     public static void onLevelTick(TickEvent.LevelTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level) || level.getGameTime() % 20 != 0) return;
+        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level) || level.getGameTime() % CHECK_TICKS != 0) return;
         if (!GROWING.contains(level.dimension()) || !ZeroConfig.SERVER.senzuGarden.get()) return;
         long start = TickCost.start();
         grow(level);
@@ -177,12 +180,14 @@ public final class SenzuGarden {
         for (SenzuSave.Bush b : save.all()) {
             long ripen = ripen(b);
             BlockPos pos = BlockPos.of(b.pos());
-            if (!level.isLoaded(pos)) continue;
-            BlockState s = level.getBlockState(pos);
-            if (!s.is(Blocks.SWEET_BERRY_BUSH)) {
+            BlockState s = level.isLoaded(pos) ? level.getBlockState(pos) : null;
+            if (s != null && !s.is(Blocks.SWEET_BERRY_BUSH)) {
                 if (!HealSave.get(level).queue().pending(b.pos())) save.forget(b.pos());
                 continue;
             }
+            // ripening is the clock's doing, so the owner hears of it wherever they are
+            if (SenzuMath.justRipened(now, b.since(), ripen, CHECK_TICKS)) tellRipe(level, b);
+            if (s == null) continue;
             int age = SenzuMath.age(now, b.since(), ripen, b.picked());
             if (s.getValue(SweetBerryBushBlock.AGE) == age) continue;
             level.setBlock(pos, s.setValue(SweetBerryBushBlock.AGE, age), Block.UPDATE_CLIENTS);
@@ -190,6 +195,14 @@ public final class SenzuGarden {
             changed++;
         }
         return changed;
+    }
+
+    private static void tellRipe(ServerLevel level, SenzuSave.Bush b) {
+        if (!ZeroConfig.SERVER.senzuRipeNotice.get()) return;
+        ServerPlayer owner = level.getServer().getPlayerList().getPlayer(b.owner());
+        if (owner == null) return;
+        owner.sendSystemMessage(Component.translatableWithFallback("message.dmzzero.senzu.ripe", "Your senzu bush at %s in %s is ripe.",
+                GardenCommand.at(b.pos()), Scouters.worldName(level)).withStyle(ChatFormatting.GREEN));
     }
 
     // random ticks and bone meal would ripen it in minutes

@@ -27,6 +27,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -176,7 +177,17 @@ public final class RivalShadows {
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         Active a = ACTIVE.remove(event.getEntity().getUUID());
-        if (a == null) return;
+        if (a != null) fadeShadow(a);
+    }
+
+    // a stopping server saves the world without logging anyone out: a shadow still out would be kept, with no time limit
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        ACTIVE.values().forEach(RivalShadows::fadeShadow);
+        ACTIVE.clear();
+    }
+
+    private static void fadeShadow(Active a) {
         Entity shadow = a.level.getEntity(a.shadow);
         if (shadow != null) fade(shadow);
     }
@@ -199,8 +210,7 @@ public final class RivalShadows {
 
     public static void dismiss(ServerPlayer player) {
         Active a = ACTIVE.remove(player.getUUID());
-        Entity e = a == null ? null : a.level.getEntity(a.shadow);
-        if (e != null) fade(e);
+        if (a != null) fadeShadow(a);
         COOLDOWN.remove(player.getUUID());
     }
 

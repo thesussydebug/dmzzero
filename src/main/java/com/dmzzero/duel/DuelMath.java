@@ -13,6 +13,7 @@ public final class DuelMath {
     public static final int CHALLENGE_TICKS = 1200;
     private static final String ROOT = "dmzzero";
     private static final String DUELS = "duels";
+    private static final String OPTED_OUT = "noDuels";
 
     public enum Phase {COUNTDOWN, FIGHTING}
 
@@ -120,16 +121,23 @@ public final class DuelMath {
         private record Pending(UUID to, long at) {
         }
 
+        private record Pair(UUID from, UUID to) {
+        }
+
         private final Map<UUID, Pending> byChallenger = new HashMap<>();
+        // when a challenge was turned down, kept across logouts so relogging doesn't skip the wait
+        private final Map<Pair, Long> declined = new HashMap<>();
         private final java.util.function.IntSupplier windowTicks;
+        private final java.util.function.IntSupplier waitTicks;
 
         public Challenges() {
-            this(() -> CHALLENGE_TICKS);
+            this(() -> CHALLENGE_TICKS, () -> 0);
         }
 
         // read on every check, so a config change applies to challenges already sent
-        public Challenges(java.util.function.IntSupplier windowTicks) {
+        public Challenges(java.util.function.IntSupplier windowTicks, java.util.function.IntSupplier waitTicks) {
             this.windowTicks = windowTicks;
+            this.waitTicks = waitTicks;
         }
 
         public void challenge(UUID from, UUID to, long now) {
@@ -147,6 +155,24 @@ public final class DuelMath {
             return true;
         }
 
+        /** Turns a pending challenge down. The challenger then has to wait before asking that player again. */
+        public boolean decline(UUID from, UUID to, long now) {
+            if (!take(from, to, now)) return false;
+            declined.values().removeIf(at -> now - at >= waitTicks.getAsInt());
+            if (waitTicks.getAsInt() > 0) declined.put(new Pair(from, to), now);
+            return true;
+        }
+
+        /** Ticks before {@code from} may challenge {@code to} again after being turned down, 0 when free to. */
+        public long waitLeft(UUID from, UUID to, long now) {
+            Long at = declined.get(new Pair(from, to));
+            return at == null ? 0 : Math.max(0, waitTicks.getAsInt() - (now - at));
+        }
+
+        public int waits() {
+            return declined.size();
+        }
+
         public void forget(UUID player) {
             byChallenger.remove(player);
             byChallenger.values().removeIf(p -> p.to.equals(player));
@@ -154,7 +180,20 @@ public final class DuelMath {
 
         public void clear() {
             byChallenger.clear();
+            declined.clear();
         }
+    }
+
+    /** Whether this player turns every duel challenge away. */
+    public static boolean optedOut(CompoundTag persisted) {
+        return persisted.getCompound(ROOT).getBoolean(OPTED_OUT);
+    }
+
+    public static void setOptedOut(CompoundTag persisted, boolean optedOut) {
+        CompoundTag root = persisted.getCompound(ROOT);
+        if (optedOut) root.putBoolean(OPTED_OUT, true);
+        else root.remove(OPTED_OUT);
+        persisted.put(ROOT, root);
     }
 
     public static void record(CompoundTag persisted, Result result) {

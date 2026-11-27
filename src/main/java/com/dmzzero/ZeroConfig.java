@@ -95,6 +95,8 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue throughAhead;
         public final ForgeConfigSpec.BooleanValue runningDust;
         public final ForgeConfigSpec.DoubleValue runningSpeed;
+        public final ForgeConfigSpec.BooleanValue lightFeet;
+        public final ForgeConfigSpec.IntValue lightFeetFlyLevel;
         public final ForgeConfigSpec.BooleanValue senseNames;
         public final ForgeConfigSpec.BooleanValue rivals;
         public final ForgeConfigSpec.DoubleValue rivalBonus;
@@ -128,6 +130,8 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue challengeRange;
         public final ForgeConfigSpec.IntValue challengeSeconds;
         public final ForgeConfigSpec.IntValue ringOutSeconds;
+        public final ForgeConfigSpec.BooleanValue duelOptOut;
+        public final ForgeConfigSpec.IntValue duelDeclineWait;
         public final ForgeConfigSpec.DoubleValue potentialTp;
         public final ForgeConfigSpec.DoubleValue potentialMastery;
         public final ForgeConfigSpec.DoubleValue zenkaiPerLevel;
@@ -154,6 +158,7 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue scouterSpikeRange;
         public final ForgeConfigSpec.DoubleValue scouterSpikeRatio;
         public final ForgeConfigSpec.IntValue scouterSpikeMin;
+        public final ForgeConfigSpec.BooleanValue scouterMute;
         public final ForgeConfigSpec.BooleanValue battles;
         public final ForgeConfigSpec.IntValue stageRadius;
         public final ForgeConfigSpec.IntValue battleMinutes;
@@ -274,6 +279,9 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue overchargeFadeSeconds;
         public final ForgeConfigSpec.IntValue senzuDays;
         public final ForgeConfigSpec.BooleanValue strikeNames;
+        public final ForgeConfigSpec.BooleanValue techniqueSets;
+        public final ForgeConfigSpec.IntValue techniqueSetMax;
+        public final ForgeConfigSpec.IntValue techniqueSetSeconds;
         public final ForgeConfigSpec.BooleanValue arrowBounce;
         public final ForgeConfigSpec.DoubleValue arrowRatio;
         public final ForgeConfigSpec.IntValue arrowMinPower;
@@ -346,6 +354,10 @@ public final class ZeroConfig {
         public final ForgeConfigSpec.IntValue senzuBushes;
         public final ForgeConfigSpec.IntValue korinRange;
         public final ForgeConfigSpec.DoubleValue korinSpeed;
+        public final ForgeConfigSpec.BooleanValue senzuRipeNotice;
+        public final ForgeConfigSpec.BooleanValue gardenList;
+        public final ForgeConfigSpec.BooleanValue awayNotice;
+        public final ForgeConfigSpec.IntValue awayNoticeMax;
         public final ForgeConfigSpec.BooleanValue plowing;
         public final ForgeConfigSpec.DoubleValue plowTpShare;
         public final ForgeConfigSpec.IntValue plowBlocksPerDay;
@@ -553,6 +565,15 @@ public final class ZeroConfig {
             strikeNames = b.comment("Strike attacks send their technique name to DMZ Zero clients nearby, shown over the striker.")
                     .define("strikeNames", true);
             b.pop();
+
+            b.push("techniqueSets");
+            techniqueSets = b.comment("Save what's in your technique slots as named sets and swap them: /dmzzero techniques, or the ; key.")
+                    .define("enabled", true);
+            techniqueSetMax = b.comment("Sets each character can keep.")
+                    .defineInRange("maxSets", 4, 1, 16);
+            techniqueSetSeconds = b.comment("Seconds between two switches. 0 is no wait.")
+                    .defineInRange("switchSeconds", 3, 0, 600);
+            b.pop();
             b.pop();
 
             b.push("beams");
@@ -699,6 +720,8 @@ public final class ZeroConfig {
                     .defineInRange("spikeRatio", 1.5, 1.1, 1000.0);
             scouterSpikeMin = b.comment("Readings below this never count as a spike.")
                     .defineInRange("spikeMin", 1000, 0, Integer.MAX_VALUE);
+            scouterMute = b.comment("Players can mute someone's scouter talk and pings with /dmzzero scouter mute <player>.")
+                    .define("mute", true);
             b.pop();
 
             b.push("overcharge");
@@ -750,6 +773,13 @@ public final class ZeroConfig {
                     .defineInRange("speed", 0.4, 0.1, 10.0);
             b.pop();
 
+            b.push("lightFeet");
+            lightFeet = b.comment("Fighters who can fly don't trample farmland when they jump or land.")
+                    .define("enabled", true);
+            lightFeetFlyLevel = b.comment("DragonMineZ Fly skill level needed to step lightly.")
+                    .defineInRange("flyLevel", 1, 1, 100);
+            b.pop();
+
             b.push("lifts");
             lifts = b.comment("Crouch and right-click a party member with an empty hand, then stand up, to ride on their back.")
                     .define("enabled", true);
@@ -793,6 +823,10 @@ public final class ZeroConfig {
                     .defineInRange("challengeSeconds", 60, 10, 600);
             ringOutSeconds = b.comment("Seconds outside the ring before you lose by ring-out.")
                     .defineInRange("ringOutSeconds", 5, 1, 60);
+            duelOptOut = b.comment("Players can turn duel challenges away with /dmzzero duel off.")
+                    .define("optOut", true);
+            duelDeclineWait = b.comment("Seconds before someone you declined can challenge you again. 0 turns the wait off.")
+                    .defineInRange("declineWaitSeconds", 60, 0, 3600);
             b.pop();
 
             b.push("battles");
@@ -953,6 +987,15 @@ public final class ZeroConfig {
                     .defineInRange("maxPerPlayer", 3, 1, 32);
             b.pop();
 
+            b.push("garden");
+            gardenList = b.comment("/dmzzero garden lists your senzu bushes, Saibaman seeds and Trees of Might, and where they are.")
+                    .define("enabled", true);
+            awayNotice = b.comment("On joining, a chat line names what of yours became ready while you were away.")
+                    .define("awayNotice", true);
+            awayNoticeMax = b.comment("Most things that line names. The rest are only counted.")
+                    .defineInRange("awayNoticeMax", 6, 1, 64);
+            b.pop();
+
             b.push("senzuGarden");
             senzuGarden = b.comment("A senzu bean planted in farmland grows a bush that gives senzu beans.")
                     .define("enabled", true);
@@ -966,6 +1009,8 @@ public final class ZeroConfig {
                     .defineInRange("korinRange", 32, 0, 128);
             korinSpeed = b.comment("How many times faster a bush near Korin ripens.")
                     .defineInRange("korinSpeed", 2.0, 1.0, 10.0);
+            senzuRipeNotice = b.comment("A chat line tells you when one of your bushes ripens while you're online.")
+                    .define("ripeNotice", true);
             b.pop();
 
             b.push("plowing");
@@ -1214,7 +1259,7 @@ public final class ZeroConfig {
             b.pop();
 
             b.push("gathering");
-            gather = b.comment("Overcharging a technique pulls dust and specks of light in toward the hands. Your screen only.")
+            gather = b.comment("Overcharging a technique pulls DragonMineZ's ki specks and dust in toward the hands. Your screen only.")
                     .define("enabled", true);
             gatherAt = b.comment("Charge, in percent, where gathering starts. Overcharging starts past 100.")
                     .defineInRange("startAt", 100.0, 0.0, 175.0);

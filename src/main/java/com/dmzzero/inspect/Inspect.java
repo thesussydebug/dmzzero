@@ -17,6 +17,7 @@ import com.dmzzero.realm.NullRealm;
 import com.dmzzero.rival.RivalData;
 import com.dmzzero.rival.RivalShadows;
 import com.dmzzero.scouter.ScouterMath;
+import com.dmzzero.scouter.ScouterMutes;
 import com.dmzzero.scouter.Scouters;
 import com.dmzzero.sense.KnownKi;
 import com.dragonminez.common.stats.StatsCapability;
@@ -123,7 +124,9 @@ public final class Inspect {
                 .firstForms(FirstForms.count(persisted))
                 .fusions(FusionRecord.count(persisted, FusionRecord.FUSED))
                 .destructionOff(ImpactData.destructionOff(persisted))
-                .realmReturn(NullRealm.hasReturn(persisted));
+                .realmReturn(NullRealm.hasReturn(persisted))
+                .duelsOff(DuelMath.optedOut(persisted))
+                .scouterMutes(ScouterMutes.names(persisted));
     }
 
     private static void live(InspectReport.Facts.Builder f, ServerPlayer p) {

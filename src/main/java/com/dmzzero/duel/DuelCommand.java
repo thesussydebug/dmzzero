@@ -7,7 +7,7 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
-// /dmzzero duel <player>, accept/decline <player>, record [player]
+// /dmzzero duel <player>, accept/decline <player>, off/on, record [player]
 public final class DuelCommand {
 
     private DuelCommand() {
@@ -20,6 +20,10 @@ public final class DuelCommand {
                                 .executes(ctx -> ok(Duels.accept(ctx.getSource().getPlayerOrException(), EntityArgument.getPlayer(ctx, "player"))))))
                         .then(Commands.literal("decline").then(Commands.argument("player", EntityArgument.player())
                                 .executes(ctx -> ok(Duels.decline(ctx.getSource().getPlayerOrException(), EntityArgument.getPlayer(ctx, "player"))))))
+                        .then(Commands.literal("off")
+                                .executes(ctx -> ok(Duels.setOptOut(ctx.getSource().getPlayerOrException(), true))))
+                        .then(Commands.literal("on")
+                                .executes(ctx -> ok(Duels.setOptOut(ctx.getSource().getPlayerOrException(), false))))
                         .then(Commands.literal("record")
                                 .executes(ctx -> record(ctx.getSource(), ctx.getSource().getPlayerOrException()))
                                 .then(Commands.argument("player", EntityArgument.player())

@@ -19,6 +19,9 @@ public final class CalloutMath {
     private static final Pattern CODES = Pattern.compile("§.?");
     private static final Pattern SPACE = Pattern.compile("[\\s\\p{Cntrl}]+");
     private static final Pattern PLAIN_ID = Pattern.compile("[a-z0-9_.\\-]+");
+    private static final Pattern NAME_KEY = Pattern.compile("technique(\\.[a-z0-9_\\-]+){2,}");
+    // dmz spells it "Kamehame Ha" in english, which is still one word to chant by syllable
+    private static final Pattern KAMEHAME_HA = Pattern.compile("(?i)\\b(kamehame)[ \\-]+(ha)\\b");
 
     private CalloutMath() {
     }
@@ -43,7 +46,7 @@ public final class CalloutMath {
         if (clean == null) return out;
         String prefix = clean(stack);
         if (prefix != null) out.add(prefix);
-        String[] words = clean.split("[ \\-]+");
+        String[] words = KAMEHAME_HA.matcher(clean).replaceAll("$1$2").split("[ \\-]+");
         for (int i = 0; i < words.length; i++) {
             String w = words[i];
             if (w.isEmpty()) continue;
@@ -120,10 +123,26 @@ public final class CalloutMath {
         return 0xFF000000 | mix(rgb, 0x000000, 0.65);
     }
 
-    /** Lang keys to try for a technique fired without a given name (DMZ's and Sparking's own techniques). */
+    /** Whether a technique's name is a lang key, as DMZ names its own techniques, and not words a player typed. */
+    public static boolean isNameKey(String name) {
+        return name != null && NAME_KEY.matcher(name).matches();
+    }
+
+    /** What a name key without a translation shouts: its last part, "technique.x.super_beam" as "Super Beam". */
+    public static String wordsOf(String key) {
+        StringBuilder out = new StringBuilder();
+        for (String word : key.substring(key.lastIndexOf('.') + 1).split("[_\\-]+")) {
+            if (word.isEmpty()) continue;
+            if (!out.isEmpty()) out.append(' ');
+            out.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return out.toString();
+    }
+
+    /** Lang keys to try for a technique fired without a given name (DMZ's, Sparking's and Overhaul's own techniques). */
     public static List<String> langKeys(String techniqueId) {
         if (techniqueId == null || !PLAIN_ID.matcher(techniqueId).matches() || techniqueId.contains("..")) return List.of();
-        return List.of("technique.dragonminez." + techniqueId, "technique.dmzsparking." + techniqueId);
+        return List.of("technique.dragonminez." + techniqueId, "technique.dmzsparking." + techniqueId, "technique.dmzrevamp." + techniqueId);
     }
 
     private static int mix(int rgb, int toward, double share) {

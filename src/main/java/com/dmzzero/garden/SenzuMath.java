@@ -33,10 +33,24 @@ public final class SenzuMath {
         return now >= since && now - since >= ripen;
     }
 
+    /** True for the first {@code every} ticks after ripening, so a check that often sees each ripening once. */
+    public static boolean justRipened(long now, long since, long ripen, long every) {
+        long past = now - since - ripen;
+        return past >= 0 && past < every;
+    }
+
     /** In-game hours until it's ripe, rounded up; 0 once it is. */
     public static long hoursLeft(long now, long since, long ripen) {
-        if (ripe(now, since, ripen)) return 0;
-        long left = ripen - Math.max(0, now - since);
-        return Math.max(1, (left + HOUR - 1) / HOUR);
+        return ripe(now, since, ripen) ? 0 : hours(ripen - Math.max(0, now - since));
+    }
+
+    /** Ticks as in-game hours, rounded up. */
+    public static long hours(long ticks) {
+        return ticks <= 0 ? 0 : Math.max(1, (ticks + HOUR - 1) / HOUR);
+    }
+
+    /** Ready by now, and not yet when its owner left at {@code left}. */
+    public static boolean becameReady(long readyAt, long left, long now) {
+        return readyAt > left && readyAt <= now;
     }
 }

@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.UUID;
 
 // a technique's name shouted over the head of whoever fires it. the name comes with the projectile (TechniqueNames on the server
-// puts it in the custom name); dmz's and sparking's own techniques fired without one fall back to their lang names
+// puts it in the custom name); dmz's, sparking's and overhaul's own techniques fired without one fall back to their lang names
 @Mod.EventBusSubscriber(modid = DMZZero.MOD_ID, value = Dist.CLIENT)
 public final class Callouts {
     private static final double RANGE = 64;
@@ -148,7 +148,17 @@ public final class Callouts {
     }
 
     private static String nameOf(AbstractKiProjectile proj) {
-        return proj.hasCustomName() ? proj.getCustomName().getString() : langName(proj.getTechniqueId());
+        return readable(proj.hasCustomName() ? proj.getCustomName().getString() : null, proj.getTechniqueId());
+    }
+
+    // the words to shout for a name from the server. it can still be a lang key: from a server on 0.17.13 or older, which
+    // sent dmz's keys as text and cut them short, or for a technique this client has no translation of
+    private static String readable(String name, String techniqueId) {
+        if (name == null || name.isEmpty()) return langName(techniqueId);
+        if (!CalloutMath.isNameKey(name)) return name;
+        if (I18n.exists(name)) return I18n.get(name);
+        String byId = langName(techniqueId);
+        return byId != null ? byId : CalloutMath.wordsOf(name);
     }
 
     // a charge held past chantTicks starts the chant, one more part every chantTicks; the last part waits for the release
@@ -206,7 +216,7 @@ public final class Callouts {
         if (mc.level == null || mc.player == null || !enabled()) return;
         Entity owner = mc.level.getEntity(entityId);
         if (owner == null) return;
-        String clean = CalloutMath.clean(name == null || name.isEmpty() ? langName(technique) : name);
+        String clean = CalloutMath.clean(readable(name, technique));
         if (clean != null) shout(mc, owner, CalloutMath.shout(clean), rgb);
     }
 

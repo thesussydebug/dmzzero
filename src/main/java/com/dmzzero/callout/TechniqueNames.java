@@ -14,7 +14,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 // dmz only sends a fired technique's id to clients, and the id drops the spaces from its name ("goku_megabeam"). the server knows the
-// real name, so it rides along as the projectile's vanilla custom name, which every client already gets. it's never shown as a nametag
+// real name, so it rides along as the projectile's vanilla custom name, which every client already gets. it's never shown as a nametag.
+// dmz's own techniques are named by a lang key, which goes as a translatable so each client reads it in its own language
 @Mod.EventBusSubscriber(modid = DMZZero.MOD_ID)
 public final class TechniqueNames {
     private static int named;
@@ -33,9 +34,9 @@ public final class TechniqueNames {
         lastSeen = proj;
         if (!ZeroConfig.SERVER.techniqueNames.get() || proj.hasCustomName()) return;
         if (!(proj.getOwner() instanceof ServerPlayer owner)) return;
-        String name = CalloutMath.clean(nameOf(owner, proj.getTechniqueId()));
+        Component name = shown(nameOf(owner, proj.getTechniqueId()));
         if (name == null) return;
-        proj.setCustomName(Component.literal(name));
+        proj.setCustomName(name);
         proj.setCustomNameVisible(false);
         named++;
         lastNamed = proj;
@@ -56,6 +57,13 @@ public final class TechniqueNames {
         if (p == null) return "none";
         return p.getClass().getSimpleName() + " id=" + p.getTechniqueId() + " owner=" + (p.getOwner() == null ? "null" : p.getOwner().getName().getString())
                 + " named=" + p.hasCustomName() + " at " + p.blockPosition();
+    }
+
+    // a key is never cut to a callout's length: half a key matches no translation
+    private static Component shown(String name) {
+        if (CalloutMath.isNameKey(name)) return Component.translatable(name);
+        String clean = CalloutMath.clean(name);
+        return clean == null ? null : Component.literal(clean);
     }
 
     static String nameOf(ServerPlayer owner, String techniqueId) {
